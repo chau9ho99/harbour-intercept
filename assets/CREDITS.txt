@@ -1,0 +1,37 @@
+Real Victoria Harbour photographic background
+Night view of Hong Kong from Tsim Sha Tsui.jpg
+Photographer: Przemek Jaczewski (PrzemekJaczewski)
+Source: https://commons.wikimedia.org/wiki/File:Night_view_of_Hong_Kong_from_Tsim_Sha_Tsui.jpg
+Original image: https://upload.wikimedia.org/wikipedia/commons/b/bb/Night_view_of_Hong_Kong_from_Tsim_Sha_Tsui.jpg
+License: Creative Commons Attribution 3.0 Unported
+https://creativecommons.org/licenses/by/3.0/
+Changes: resized to 4096 pixels wide, converted to WebP, mapped to a partial directional background and reflected by the game renderer. The source is a waterfront panorama, not a 360-degree environment capture. No endorsement implied.
+
+Other assets: code-generated geometry and AI-generated material atlas.
+
+V4: The full photograph is no longer rendered as a backdrop. Narrow facade crops are color-adjusted, resampled and incorporated into harbour-surface-atlas-v4.webp as 3D surface material tiles. All skyline, sky and terrain geometry are rendered with unified lighting.
+
+V5: harbour layout and landmarks were rebuilt as original code-generated geometry. Building facades now use procedural window materials; photographic crops are no longer sampled by the building shader. AI metal/asphalt textures remain. remaster-flight-preview.jpg is a test frame rendered from the game itself without the HTML HUD.
+
+V6 avionics: cockpit-frame.webp derived from the AI-generated image 現代戰機透明座艙框架.png created for this game; converted from PNG to WebP with alpha preserved. HUD symbology SVG and the live Canvas 2D avionics display are original code-generated assets. HUD values use the arcade simulation's telemetry; this is not an aircraft-certified instrument model.
+
+Central material study (2026-10-27): central-curtainwall-v6.webp is an original AI-generated facade asset made with built-in image generation. Orthographic neutral-light silver-blue Hong Kong office curtain wall with aluminium mullions, dark spandrels, blinds and subtle office interiors; no skyline or baked perspective. Generated 8 columns / 7 usable floor rows; mapped with matching aspect into procedural buildings. Roughness, Fresnel response and pane normal perturbations are computed in GLSL, not measured PBR scans. Reflected skyline on glass is a procedural approximation; sea uses the existing planar scene reflection. Models are architectural interpretations, not surveyed assets.
+Architecture reference: https://www.rlb.com/asia/projects/two-international-finance-centre/
+
+IFC / sun-shadow refinement (2026-10-27): geometry reference from the original architect, https://pcparch.com/work/ifc-hong-kong — tapering form, open crown, lightly reflective glazing and pearl mullions. Reference only; no third-party photographs copied into the game. Two fixed static-world RGB depth shadow maps with receiver-plane PCF filtering (2048 high / 1024 lite), shared sun direction for sky, surface illumination and shadows. Maps are regenerated on quality changes, not each frame. Aircraft receive building shadows but do not cast moving shadows in this version. The geometry remains an interpretation, not a measured digital twin.
+
+Living waterfront update (2026-10-27): three procedural building families (glass offices, stone offices, concrete residential blocks), with detailed nearby balconies, air-conditioners, rooftop plant and shop plinths. Procedural coastal road markings, static cars/taxis/buses, smooth-canopy trees, railings, benches, lamps, two elevated walkways and three rebuilt pier roofs. Three original green-and-cream double-ended ferry meshes animate on open-water routes with procedural wake foam, reflected hulls and gentle bobbing. Traffic freezes with game pause. Boats do not dock or cast moving shadows; vehicles are scenery. Layout and vessels are Hong Kong-inspired interpretations, not surveyed reproductions.
+
+Central landmarks update: original procedural interpretations based on architect and engineer descriptions: Bank of China Tower https://www.pcf-p.com/projects/bank-of-china-tower/ and HSBC Main Building https://hkie.org.hk/ea/en/project/11 . Approximate game-scaled positions, not surveyed buildings.
+
+Central layout study: references MTR Central and Hong Kong station street maps https://www.mtr.com.hk/archive/ch/services/maps/cen.pdf and https://www.mtr.com.hk/archive/ch/services/maps/hok.pdf . Waterfront-to-inland arrangement and skyline are visually interpreted and game-scaled, not a surveyed map.
+
+Four landmark interpretations: Lippo Centre https://www.wongouyang.com/projects/lippo-centre/ ; Cheung Kong Center https://www.rlb.com/asia/projects/cheung-kong-centre/ ; The Center https://www.discoverhongkong.com/eng/place-to-go/travel.guide-the-center.html ; Bank of America Tower https://www.tourism.gov.hk/symphony/english/participating/participating_hk_13.html . Models and positions are approximations.
+
+Street and station interpretation: reference MTR Central, Hong Kong and Admiralty street maps https://www.mtr.com.hk/archive/ch/services/maps/cen.pdf https://www.mtr.com.hk/archive/ch/services/maps/hok.pdf https://www.mtr.com.hk/archive/ch/services/maps/adm.pdf . Ground-level entrances and streets are game-scaled fictional interpretations, not navigational maps; there are no underground station interiors. Sign textures are hand-drawn in Canvas 2D.
+
+Inner street update: procedural secondary roads and crosswalks on both sides, generated to fit existing block positions and avoid building footprints. These are game-scaled invented streets, not surveyed navigation data; cars remain static scenery.
+
+Wan Chai waterfront interpretation: HKCEC, Golden Bauhinia Square and Central Plaza referenced from https://www.som.com/projects/hong-kong-convention-and-exhibition-centre/ and https://www.discoverhongkong.com/eng/place-to-go/travel.guide-golden-bauhinia-square.html . Geometry and layout are approximate and game-scaled.
+
+HKCEC v20: original procedural model informed by the extension contractor https://dragageshk.com/project/hkcec-extension/ and Hong Kong Tourism Board https://www.discoverhongkong.com/eng/place-to-go/travel.guide-hong-kong-convention-and-exhibition-centre.html . Single continuous curved aluminium roof, rounded glass curtain wall, ribs and podium; game-scaled interpretation, not a survey or exact architectural model. No photograph is used as scenery.
