@@ -1602,7 +1602,7 @@ function firstCollision(from,to,radius=7){let best=null;for(let b of collisionBo
 // Segment versus sphere: return first contact time, allowing wall and target ordering.
 function missileTargetT(from,to,center,radius){let v=sub(to,from),q=sub(from,center),a=dot(v,v),b=2*dot(q,v),c=dot(q,q)-radius*radius;if(c<=0)return 0;if(a<1e-9)return null;let disc=b*b-4*a*c;if(disc<0)return null;let t=(-b-Math.sqrt(disc))/(2*a);return t>=0&&t<=1?t:null;}
 let buildingImpactCount=0;
-function buildingImpact(hit){
+function buildingImpact(hit,weapon='導彈'){
  buildingImpactCount++;let p=add(hit.point,mul(hit.normal,1.8));sound('hit');
  let distance=len(sub(player.pos,p)),strength=clamp(1-distance/500,0,1);
  if(strength>0){impactFlash=Math.max(impactFlash,.34*strength);shake=Math.max(shake,.34*strength);}
@@ -1611,7 +1611,7 @@ function buildingImpact(hit){
  for(let i=0;i<n;i++){let v=add(mul(hit.normal,12+rand()*30),[(rand()-.5)*45,rand()*38,(rand()-.5)*45]);emitParticle(p,v,0,2+rand()*5,.45+rand()*.75,[1,.58+rand()*.25,.22],8);}
  for(let i=0;i<(quality==='high'?16:9);i++)emitParticle(p,add(mul(hit.normal,5+rand()*14),[(rand()-.5)*12,8+rand()*18,(rand()-.5)*12]),1,4+rand()*6,2+rand()*2,[.12,.13,.14],4);
  for(let i=0;i<(quality==='high'?15:8);i++)emitParticle(p,add(mul(hit.normal,20+rand()*35),[(rand()-.5)*40,rand()*35,(rand()-.5)*40]),2,.4+rand()*.8,.5+rand()*1.1,[1,.62,.18]);
- notify('導彈擊中建築物',1.3);
+ notify(weapon+'擊中建築物',1.3);
 }
 function stepMissile(m,dt){
  if(m.life<=0)return;m.life-=dt;if(m.life<=0)return;
@@ -1621,6 +1621,20 @@ function stepMissile(m,dt){
  if(wall&&(t===null||wall.t<=t)){m.pos=wall.point;buildingImpact(wall);m.life=0;return;}
  if(t!==null){m.pos=add(from,mul(sub(to,from),t));destroy(m.target);m.life=0;return;}
  m.pos=to;if(frame%2===0)emitParticle(m.pos,[0,3,0],1,1.6,.65,[.35,.37,.38],1);
+}
+// Machine-gun rounds and rockets stop at the nearest wall or aircraft.
+function gunImpact(hit){
+ let p=add(hit.point,mul(hit.normal,1));
+ let n=quality==='high'?7:4;
+ for(let i=0;i<n;i++)emitParticle(p,add(mul(hit.normal,8+rand()*22),[(rand()-.5)*18,rand()*12,(rand()-.5)*18]),2,.22+rand()*.3,.18+rand()*.3,[1,.72,.3]);
+ emitParticle(p,mul(hit.normal,3),1,1.3,.45,[.23,.23,.21],1.5);
+}
+function stepPlayerProjectile(b,from,to){
+ let wall=firstCollision(from,to,b.rocket?1.2:.35),winner=null,best=wall?wall.t:Infinity;
+ for(let e of enemies){if(e.dead)continue;let t=missileTargetT(from,to,e.pos,22);if(t!==null&&t<best){best=t;winner=e;}}
+ if(winner){b.pos=add(from,mul(sub(to,from),best));winner.hp-=b.damage||1;combatStats.hits++;hitConfirm=.16;b.life=0;explosion(b.pos,b.rocket?.55:.2);if(winner.hp<=0)destroy(winner);return 'enemy';}
+ if(wall){b.pos=wall.point;b.life=0;if(b.rocket)buildingImpact(wall,'火箭');else gunImpact(wall);return 'building';}
+ return null;
 }
 function hurt(n){if(mode!=='play')return;n*=combatLevels[difficulty].damage;combo=0;comboUntil=0;combatStats.damage+=Math.min(player.hp,n);sound('hit');player.hp=Math.max(0,player.hp-n);damage=.9;shake=Math.max(shake,.25);if(player.hp<=0)startCrash('機體受到致命損傷，失控墜落。');}
 function launchMissile(){if(mode!=='play'||paused||!$('panel').hidden||missileCD>0)return;if(player.missiles<=0){notify('導彈耗盡 · 每擊落 3 架可獲補給');return}let lock=selected&&!selected.dead&&aimDuration>=.45?selected:null;player.missiles--;combatStats.missiles++;missileCD=1.1;missiles.push({pos:add(player.pos,[3,-1,0]),vel:mul(forward(player.yaw,player.pitch),200),target:lock,life:8});sound('missile');notify(lock?'導彈發射 · 追蹤目標':'導彈發射 · 直線飛行',1)}
@@ -1723,7 +1737,7 @@ for(let e of enemies){
  }
  if(dist<24){hurt(25);if(mode!=='play')return;destroy(e)}if(dist>3500&&!e.cityAnchor)e.dead=true;
 }
-for(let b of bullets){if(b.life<=0)continue;let old=b.pos;b.pos=add(b.pos,mul(b.vel,dt));b.life-=dt;if(b.enemy){let relativeOld=sub(old,previousPosition),relativeNew=sub(b.pos,player.pos);if(segmentDistance(relativeOld,relativeNew,[0,0,0])<9){enemyHits++;let hitSource=b.source&&!b.source.dead?b.source:threatSource;if(hitSource){threatSource=hitSource;threatTime=2.5;}hurt(9);b.life=0;if(mode!=='play')return;let angle=hitSource?contactBearing(hitSource.pos).angle:0;notify('⚠ 受到敵火 · '+(Math.abs(angle)<12?'前方':angle<0?'左方':'右方'),1.6)}}else for(let e of enemies){if(!e.dead&&segmentDistance(old,b.pos,e.pos)<22){e.hp-=b.damage||1;combatStats.hits++;hitConfirm=.16;b.life=0;explosion(b.pos,.2);if(e.hp<=0)destroy(e);break}}}
+for(let b of bullets){if(b.life<=0)continue;let old=b.pos;b.pos=add(b.pos,mul(b.vel,dt));b.life-=dt;if(b.enemy){let relativeOld=sub(old,previousPosition),relativeNew=sub(b.pos,player.pos);if(segmentDistance(relativeOld,relativeNew,[0,0,0])<9){enemyHits++;let hitSource=b.source&&!b.source.dead?b.source:threatSource;if(hitSource){threatSource=hitSource;threatTime=2.5;}hurt(9);b.life=0;if(mode!=='play')return;let angle=hitSource?contactBearing(hitSource.pos).angle:0;notify('⚠ 受到敵火 · '+(Math.abs(angle)<12?'前方':angle<0?'左方':'右方'),1.6)}}else stepPlayerProjectile(b,old,b.pos)}
 for(let m of missiles)stepMissile(m,dt);
 if(mode!=='play')return;combatUpgradeStep(dt,previousPosition);stepEffects(dt);if(selected&&selected.dead){selected=null;aimDuration=0;}if(tracked&&tracked.dead){if(autoActive)stopAuto('目標已消失 · 自動追擊結束');tracked=null;$('trackTarget').classList.remove('active');}enemies=enemies.filter(e=>!e.dead);bullets=bullets.filter(b=>b.life>0);missiles=missiles.filter(m=>m.life>0);if(spawnTimer<=0&&enemies.length<5&&kills+enemies.length<12){spawn();spawnTimer=2.7}if(enemies.length===0&&kills<12)spawn();
 let pursuer=enemies.find(e=>!e.dead&&len(sub(player.pos,e.pos))<650&&dot(forward(e.yaw,e.pitch),norm(sub(player.pos,e.pos)))>.8);let threat=threatTime>0&&threatSource?threatSource:pursuer;if(threat){let b=contactBearing(threat.pos),deg=Math.round(Math.abs(b.angle));$('threatWarning').hidden=false;$('threatWarning').textContent=(threatTime>0?'⚠ 敵火 ':'⚠ 敵機追擊 ')+(b.behind?'後方 · ':'')+(deg<12?'前方':(b.angle<0?'左方 ':'右方 ')+deg+'°');}else $('threatWarning').hidden=true;$('weaponStatus').textContent='火箭 '+rocketSalvos+'  ·  干擾 '+flareCharges+(flareCD>0?' ('+Math.ceil(flareCD)+'s)':'');$('speed').textContent=Math.round(player.speed*3.6);$('alt').textContent=Math.round(player.pos[1]);$('health').style.width=player.hp+'%';$('hp').textContent='機體 '+Math.round(player.hp)+'%';$('ammo').textContent='導彈 '+player.missiles+' / 6';if(audioOn&&audioEngine)audioEngine.frequency.value=35+player.speed*.12;
