@@ -37,6 +37,28 @@ float sunVisibility(vec3 pos,vec3 normal,float nl){
  float nearVis=filteredShadow(shadowNearTex,nearQ,shadowTexel.x,.000008+.000018*(1.-nl));
  return mix(nearVis,farVis,smoothstep(.43,.49,edge));
 }
+// World-scale paving shared by both banks and every eligible ground-level slab.
+float groundHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+vec3 groundPaving(vec2 p){
+ vec2 q=p/vec2(1.4,.7);q.x+=mod(floor(q.y),2.)*.5;
+ vec2 cell=floor(q),f=fract(q),aa=max(fwidth(q),vec2(.003));
+ vec2 edge=min(f,1.-f);
+ float grout=1.-smoothstep(.012,.012+max(aa.x,aa.y)*1.2,min(edge.x,edge.y));
+ float variation=groundHash(cell);
+ vec3 stone=mix(vec3(.20,.175,.135),vec3(.31,.29,.235),variation*.65);
+ float distanceFade=1.-smoothstep(.4,1.5,max(aa.x,aa.y));
+ stone=mix(vec3(.255,.235,.19),stone,distanceFade);
+ stone=mix(stone,vec3(.13,.125,.105),grout*.38*distanceFade);
+ // Broad but subtle mineral variation avoids a featureless field at flight altitude.
+ float weather=.96+.035*sin(p.x*.032)*sin(p.y*.041);
+ return stone*weather;
+}
+vec3 groundAsphalt(vec2 p){
+ vec2 q=p*9.;float aa=max(fwidth(q.x),fwidth(q.y));
+ float grit=(groundHash(floor(q))-.5)*(1.-smoothstep(.25,1.2,aa));
+ float worn=.5+.5*sin(p.x*.08+sin(p.y*.04));
+ return vec3(.047,.052,.055)+grit*.018+worn*.009;
+}
 void main(){vec3 N=normalize(n),V=normalize(eye-wp);float rough=mat.x,metal=mat.y,em=mat.z,type=mat.w;vec3 base=col;bool aircraft=type>4.5&&type<5.5;float water=step(2.5,type)* (1.-step(3.5,type));float wet=step(3.5,type)*(1.-step(4.5,type));float glass=0.;
 if(type>.5&&type<2.5&&abs(N.y)<.5){
  vec2 grid=uv*vec2(16.,29.),cell=fract(grid),id=floor(grid);
@@ -71,15 +93,33 @@ if(type>5.5&&type<7.5&&abs(N.y)<.5){
  em=step(.96,r)*pane*.025;
 }
 
-// Procedural courtyards, paving and planting add detail to the spaces between streets.
+// Coherent inland street grid shares the procedural building coordinates.
 if(type>9.5&&type<10.5){
- vec2 p=wp.xz;vec2 lot=floor(p/42.);vec2 f=fract(p/42.);float r=fract(sin(dot(lot,vec2(127.1,311.7)))*43758.5453);
- vec2 tile=abs(fract(p/3.)-.5);float joints=1.-smoothstep(.465,.495,max(tile.x,tile.y));
- float inset=step(.18,f.x)*step(f.x,.82)*step(.18,f.y)*step(f.y,.82);
- float greenery=step(.72,r)*inset;float paving=step(.35,r)*inset;
- base=mix(vec3(.18,.20,.19),vec3(.37,.38,.33)*(.84+.16*joints),paving);
- base=mix(base,vec3(.12,.23,.11)*(0.85+.15*sin(p.x*.4)*sin(p.y*.35)),greenery);
- rough=.92;metal=0.;
+ vec2 p=wp.xz;
+ float shore=-630.-55.*sin(p.x*.0011)-25.*sin(p.x*.0029);
+ float inland=shore-145.-p.y;
+ float grain=sin(p.x*19.7)*sin(p.y*23.3)*.008;
+ base=groundPaving(p);rough=.87;metal=0.;
+ if(p.y<0.&&inland>228.){
+  float dx=abs(mod(p.x+4400.+71.,142.)-71.);
+  float dz=abs(mod(inland+76.,152.)-76.);
+  float edgeX=71.-dx,edgeZ=76.-dz;
+  float edge=min(edgeX,edgeZ);
+  float road=1.-smoothstep(10.8,11.2,edge);
+  base=mix(groundPaving(p),groundAsphalt(p),road);
+  float kerb=(1.-smoothstep(.12,.35,abs(edge-11.5)));
+  base=mix(base,vec3(.35,.35,.31),kerb);
+  float dash=step(.5,fract((edgeX<edgeZ?p.y:p.x)/10.));
+  float center=(1.-smoothstep(.08,.18,edge))*dash*step(15.,max(edgeX,edgeZ));
+  base=mix(base,vec3(.61,.6,.51),center);
+  float yellow=(1.-smoothstep(.05,.13,abs(edge-9.1)))+(1.-smoothstep(.05,.13,abs(edge-9.55)));
+  base=mix(base,vec3(.64,.44,.055),clamp(yellow,0.,1.)*step(14.,max(edgeX,edgeZ)));
+  float crossing=step(13.,max(edgeX,edgeZ))*step(max(edgeX,edgeZ),16.)*step(edge,8.)*step(.48,fract((edgeX<edgeZ?p.x:p.y)/2.4));
+  base=mix(base,vec3(.64,.61,.49),crossing);
+  // Fine pavement joints fade naturally with distance.
+  float seam=1.-smoothstep(.02,.055,min(abs(fract(p.x/1.2)-.5),abs(fract(p.y/.8)-.5)));
+  base*=1.-seam*.10*(1.-road)/(1.+length(fwidth(p))*2.);
+ }
 }
 // HKCEC curtain wall: tall glass bays, fine mullions and restrained reflections.
 if(type>10.5&&type<11.5&&abs(N.y)<.5){
@@ -106,6 +146,9 @@ if(type>12.5&&type<14.5&&abs(N.y)<.5){
 if(type>15.5&&type<16.5){base=pow(texture(streetTex,uv).rgb,vec3(2.2));rough=.55;em=.12;}
 // Vertical seawall concrete: joints, tidal staining and a subtle wet edge.
 if(type>16.5&&type<17.5){float joint=1.-smoothstep(.015,.045,abs(fract(wp.x/12.)-.5));float tide=1.-smoothstep(.7,3.3,wp.y);float grain=fract(sin(dot(floor(wp.xy*1.4),vec2(127.1,311.7)))*43758.5453);base=col*(.86+.15*grain)*(1.-joint*.18)*(1.-tide*.27);rough=mix(.46,.88,1.-tide);metal=0.;}
+// Explicit ground-only material tags never affect roofs, aircraft or building facades.
+if(type>17.5&&type<18.5){base=groundPaving(wp.xz);rough=.82+.08*groundHash(floor(wp.xz/3.));metal=.015;}
+if(type>18.5&&type<19.5){base=groundAsphalt(wp.xz);rough=.88;metal=.01;}
 // Fine standing seams and soft panel variation in the aluminium shell.
 if(type>14.5&&type<15.5){vec2 g=wp.xz/vec2(4.0,6.0);vec2 f=abs(fract(g)-.5);float seam=1.-smoothstep(.465,.495,max(f.x,f.y));float tone=fract(sin(dot(floor(g),vec2(127.1,311.7)))*43758.5453);base=col*(.84+.16*tone)*mix(.76,1.,seam);rough=.34;metal=.68;}
 if(aircraft&&materialReady){vec3 skin=texture(materialTex,vec2(.504,.504)+fract(uv)*.492).rgb;base*=mix(vec3(.65),skin*1.75,.72);rough=clamp(.23+skin.r*.18,.22,.5);}
@@ -142,7 +185,7 @@ const shadowP=program(`#version 300 es
 precision highp float;layout(location=0)in vec3 aPos;uniform mat4 lightVP;void main(){gl_Position=lightVP*vec4(aPos,1.);}`,`#version 300 es
 precision highp float;out vec4 color;void main(){vec3 packedDepth=fract(min(gl_FragCoord.z,.999999)*vec3(1.,255.,65025.));packedDepth-=packedDepth.yzz*vec3(1./255.,1./255.,0.);color=vec4(packedDepth,1.);}`);
 const skyP=program(fullVS,`#version 300 es
-precision highp float;in vec2 uv;uniform vec3 front,right,up;uniform float aspect,time;layout(location=0)out vec4 color;layout(location=1)out vec4 nd;float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}void main(){vec2 s=uv*2.-1.;vec3 d=normalize(front+right*s.x*aspect*.627+up*s.y*.627);float h=max(d.y,0.);vec3 c=mix(vec3(.12,.17,.23),vec3(.025,.065,.13),pow(h,.45));float glow=pow(max(dot(d,normalize(vec3(-.75,.32,.58))),0.),7.);c+=vec3(.3,.11,.045)*glow;float sun=pow(max(dot(d,normalize(vec3(-.75,.32,.58))),0.),1400.);c+=vec3(1.1,.5,.2)*sun;vec2 cp=d.xz/(max(d.y,.03)+.35)*2.5;float cloud=noise(cp+time*.006)*.6+noise(cp*2.1)*.3+noise(cp*4.3)*.1;c=mix(c,c*.82,smoothstep(.5,.75,cloud)*smoothstep(.02,.2,d.y));color=vec4(sqrt(max(c,vec3(0))/4.)+(hash(gl_FragCoord.xy)-.5)/255.,1);nd=vec4(.5,1.,.5,1);}`);
+precision highp float;in vec2 uv;uniform vec3 front,right,up;uniform float aspect,time;layout(location=0)out vec4 color;layout(location=1)out vec4 nd;float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}void main(){vec2 s=uv*2.-1.;vec3 d=normalize(front+right*s.x*aspect*.627+up*s.y*.627);float h=max(d.y,0.);vec3 c=mix(vec3(.12,.17,.23),vec3(.025,.065,.13),pow(h,.45));float glow=pow(max(dot(d,normalize(vec3(-.75,.32,.58))),0.),7.);c+=vec3(.3,.11,.045)*glow;float sun=pow(max(dot(d,normalize(vec3(-.75,.32,.58))),0.),1400.);c+=vec3(1.1,.5,.2)*sun;vec2 cp=d.xz/(max(d.y,.03)+.35)*2.5;float cloud=noise(cp+time*.006)*.6+noise(cp*2.1)*.3+noise(cp*4.3)*.1;float fine=noise(cp*8.7)*.065+noise(cp*17.3)*.025;float coverage=smoothstep(.48,.69,cloud+fine)*smoothstep(.015,.16,d.y);vec3 cloudLight=mix(vec3(.17,.22,.29),vec3(.65,.54,.43),smoothstep(.48,.76,cloud+fine));c=mix(c,cloudLight,coverage*.83);c+=vec3(.055,.067,.075)*exp(-h*17.);color=vec4(sqrt(max(c,vec3(0))/4.)+(hash(gl_FragCoord.xy)-.5)/255.,1);nd=vec4(.5,1.,.5,1);}`);
 const bloomP=program(fullVS,`#version 300 es
 precision highp float;in vec2 uv;out vec4 color;uniform sampler2D tex;uniform vec2 stepUV;uniform bool extract;void main(){vec3 c=vec3(0);for(int i=-4;i<=4;i++){vec3 s=texture(tex,uv+float(i)*stepUV).rgb;s=s*s*4.;if(extract)s=max(s-vec3(.88),vec3(0));float w=exp(-float(i*i)/8.);c+=s*w;}color=vec4(sqrt(max(c/4.898,vec3(0))/4.),1);}`);
 const postP=program(fullVS,`#version 300 es
@@ -159,7 +202,7 @@ class Builder{constructor(){this.a=[]}tri(a,b,c,color,mat,uvs=[[0,0],[1,0],[1,1]
 let texCanvas=document.createElement('canvas');texCanvas.width=256;texCanvas.height=256;let tc=texCanvas.getContext('2d');tc.fillStyle='#07121c';tc.fillRect(0,0,256,256);for(let y=0;y<32;y++)for(let x=0;x<16;x++){let lit=rand()>.35;tc.fillStyle=lit?`rgb(${130+rand()*125},${80+rand()*90},${65+rand()*80})`:'#0c192b';tc.fillRect(x*16+3,y*8+2,10,4)}let winTex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,winTex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,texCanvas);gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
 // Canvas 2D station signs are a single small atlas, baked once at startup.
 let stationCanvas=document.createElement('canvas');stationCanvas.width=768;stationCanvas.height=128;let stc=stationCanvas.getContext('2d');
-for(let i=0;i<3;i++){let x=i*256;stc.fillStyle='#111c20';stc.fillRect(x,0,256,128);stc.fillStyle='#c73330';stc.fillRect(x+8,13,42,42);stc.fillStyle='#fff';stc.font='bold 31px sans-serif';stc.fillText('M',x+15,45);stc.font='bold 24px sans-serif';stc.fillText(['香港站','中環站','金鐘站'][i],x+60,43);stc.font='17px sans-serif';stc.fillStyle='#d7e4de';stc.fillText(['Hong Kong','Central','Admiralty'][i],x+60,69);stc.fillStyle='#b6bbaa';stc.font='13px sans-serif';stc.fillText('STATION',x+60,94);}
+for(let i=0;i<3;i++){let x=i*256;stc.fillStyle='#111c20';stc.fillRect(x,0,256,128);stc.fillStyle='#c73330';stc.fillRect(x+8,13,42,42);stc.fillStyle='#fff';stc.font='bold 31px sans-serif';stc.lineWidth=3.5;stc.strokeStyle='#fff';stc.beginPath();stc.moveTo(x+29,19);stc.lineTo(x+29,49);stc.moveTo(x+16,27);stc.lineTo(x+42,27);stc.moveTo(x+16,41);stc.lineTo(x+42,41);stc.moveTo(x+18,20);stc.lineTo(x+18,27);stc.lineTo(x+29,34);stc.lineTo(x+40,27);stc.lineTo(x+40,20);stc.moveTo(x+18,48);stc.lineTo(x+18,41);stc.lineTo(x+29,34);stc.lineTo(x+40,41);stc.lineTo(x+40,48);stc.stroke();stc.font='bold 24px sans-serif';stc.fillText(['香港站','中環站','金鐘站'][i],x+60,43);stc.font='17px sans-serif';stc.fillStyle='#d7e4de';stc.fillText(['Hong Kong','Central','Admiralty'][i],x+60,69);stc.fillStyle='#b6bbaa';stc.font='13px sans-serif';stc.fillText('STATION',x+60,94);}
 let stationTex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,stationTex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,stationCanvas);gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
 // Hand-drawn 512px facade atlas: reflective teal windows, warm stone spandrels and varied blinds.
 let hyattCanvas=document.createElement('canvas');hyattCanvas.width=512;hyattCanvas.height=512;let ht=hyattCanvas.getContext('2d');
@@ -199,14 +242,14 @@ for(let x=-5400;x<5400;x+=90){let z0=shoreline(x),z1=shoreline(x+90);quad([x,0,z
 // Small harbour-edge details: recessed ladders, coping stones and mooring bollards.
 for(let x=-1500;x<=1900;x+=200){let z=shoreline(x);for(let dx of [-.55,.55])world.rod([x+dx,1,z+.05],[x+dx,8.8,z+.05],.08,[.3,.33,.32],[.38,.65,0,0]);for(let y=1.5;y<8;y+=1.2)world.rod([x-.55,y,z+.08],[x+.55,y,z+.08],.07,[.35,.38,.37],[.38,.65,0,0]);world.box(x+5,8,z-4,1,.85,1,[.12,.14,.14],[.5,.6,0,0]);world.box(x+5,8.85,z-4,1.5,.35,1,[.12,.14,.14],[.5,.6,0,0]);}
 // Dense urban blocks: shorter waterfront frontage and tall, varied buildings behind it.
-const reserved=[[1280,-890,380,220],[1490,-875,150,130],[1150,-950,145,190],[1600,-1050,140,160],[1790,-920,120,140],[1555,-495,160,120],[650,-910,250,180],[-620,-765,35,35],[-330,-775,35,35],[420,-1235,40,40],[-1100,-1300,160,160],[365,-1330,180,160],[510,-1130,105,100],[-800,-940,480,360],[-400,-1050,150,150],[-690,-920,200,240],[160,-1180,160,200],[-20,-1100,160,160],[-310,-850,130,130],[-485,-850,170,180],[80,-1340,100,100],[1440,-1020,190,200],[1370,-650,400,340],[-220,-640,130,100],[-1360,1230,190,220]];
+const reserved=[[-1200,-840,150,115],[-1385,-1110,125,150],[-1230,-1100,100,150],[-1450,-805,300,160],[-2030,-1100,560,430],[-1650,-900,130,100],[-3250,-1500,240,200],[1280,-890,380,220],[1490,-875,150,130],[1150,-950,145,190],[1600,-1050,140,160],[1790,-920,120,140],[1555,-495,160,120],[650,-910,250,180],[-620,-765,35,35],[-330,-775,35,35],[420,-1235,40,40],[-1100,-1300,160,160],[365,-1330,180,160],[510,-1130,105,100],[-800,-940,480,360],[-400,-1050,150,150],[-690,-920,200,240],[160,-1180,160,200],[-20,-1100,160,160],[-310,-850,130,130],[-485,-850,170,180],[80,-1340,100,100],[1440,-1020,190,200],[1370,-650,400,340],[-220,-640,130,100],[-1360,1230,190,220]];
 function free(x,z,w,d){return !reserved.some(r=>Math.abs(x-r[0])<(w+r[2])/2+25&&Math.abs(z-r[1])<(d+r[3])/2+25);}
 // Canvas-made bilingual shop and route signs; no flat photographic backdrop.
-let streetCanvas=document.createElement('canvas');streetCanvas.width=1024;streetCanvas.height=512;let sc=streetCanvas.getContext('2d');
-let signWords=[['海港茶餐廳','HARBOUR CAFE'],['永安藥房','PHARMACY'],['鮮果士多','FRESH MARKET'],['灣仔電器','ELECTRICAL'],['中環 CENTRAL','5B'],['尖沙咀 TST','1A'],['跑馬地 HAPPY VALLEY','TRAM'],['的士 TAXI','香港 HONG KONG']];
-for(let i=0;i<8;i++){let y=i*64;sc.fillStyle=['#193e35','#812c25','#b78739','#224552'][i%4];sc.fillRect(0,y,1024,64);sc.fillStyle='#eedec0';sc.font='bold 34px sans-serif';sc.fillText(signWords[i][0],24,y+35);sc.font='16px sans-serif';sc.fillText(signWords[i][1],650,y+40);sc.fillRect(0,y+60,1024,2);}
+let streetCanvas=document.createElement('canvas');streetCanvas.width=1024;streetCanvas.height=832;let sc=streetCanvas.getContext('2d');
+let signWords=[['海港茶餐廳','HARBOUR CAFE'],['永安藥房','PHARMACY'],['鮮果士多','FRESH MARKET'],['灣仔電器','ELECTRICAL'],['中環 CENTRAL','5B'],['尖沙咀 TST','1A'],['跑馬地 HAPPY VALLEY','TRAM'],['的士 TAXI','香港 HONG KONG'],['永安中心','WING ON CENTRE'],['中遠大廈','COSCO TOWER'],['新紀元廣場','GRAND MILLENNIUM PLAZA'],['巴士站','BUS STOP'],['中環電車','CENTRAL TRAM']];
+for(let i=0;i<signWords.length;i++){let y=i*64;sc.fillStyle=['#193e35','#812c25','#b78739','#224552'][i%4];sc.fillRect(0,y,1024,64);sc.fillStyle='#eedec0';sc.font='bold 34px sans-serif';sc.fillText(signWords[i][0],24,y+35);sc.font='16px sans-serif';sc.fillText(signWords[i][1],650,y+40);sc.fillRect(0,y+60,1024,2);}
 let streetTex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,streetTex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,streetCanvas);gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-function shopSign(b,x,y,z,w,h,index){let v=index/8,vt=(index+1)/8;b.quad([x-w/2,y,z],[x-w/2,y+h,z],[x+w/2,y+h,z],[x+w/2,y,z],[1,1,1],[.5,.1,.15,16],[[0,vt],[0,v],[1,v],[1,vt]]);}
+function shopSign(b,x,y,z,w,h,index){let v=index/signWords.length,vt=(index+1)/signWords.length;b.quad([x-w/2,y,z],[x-w/2,y+h,z],[x+w/2,y+h,z],[x+w/2,y,z],[1,1,1],[.5,.1,.15,16],[[0,vt],[0,v],[1,v],[1,vt]]);}
 const cityDetail={frontages:0,awnings:0,balconies:0,streetFurniture:0,movingVehicles:18};let streetSamples=[];
 const urbanStats={glass:0,stone:0,residential:0,detailed:0,trees:0,vehicles:0,bridges:0};
 // Faceted silhouettes around Wan Chai: bevelled towers, setbacks and varied roof crowns.
@@ -218,23 +261,88 @@ function bevelBlock(x,z,w,d,y,h,c,mat,cut=.16){
  }
  bounds(x,z,w,h,d,y);
 }
+// Reference-led western massing: narrow plots share a street edge, with varied upper masses.
+// This is a district typology study, not individually surveyed/address-matched buildings.
+const westernParcels=[];
+const westMassingStats={parcels:0,buildings:0,slender:0,oldWalkups:0};
+function westernParcel(x,z,w,d,row,col){
+ const STEEL=[.38,.65,0,0];
+ westMassingStats.parcels++;westernParcels.push({x,z,w,d,row,col});
+ const swatches=[[.42,.39,.31],[.33,.37,.35],[.43,.32,.27],[.30,.34,.37],[.46,.44,.36]];
+ let widths=[w*.28,w*.34,w*.32],left=x-w/2;
+ for(let j=0;j<3;j++){
+  let ww=widths[j],xx=left+ww/2;left+=ww+2;
+  let key=(col*7+row*11+j*3)%13,slender=key===2||key===7,old=key%4===0;
+  let hh=old?21+key*2:slender?112+(col*13+row*17)%68:42+(col*19+j*23+row*7)%52;
+  let dd=d*(.72+((key%3)*.09)),zz=z+(d-dd)/2,c=swatches[(col+j+row)%swatches.length];
+  let mat=slender?BUILD:[.83,.06,0,7],podium=old?8:12+key%3*3;
+  // Nearly adjoining shops share a continuous building line, with narrow service slots.
+  world.box(xx,8,zz,ww,podium,dd,c,CONCRETE);bounds(xx,zz,ww,podium,dd,8);
+  if(slender){
+   let tw=ww*.66,td=dd*.65,tx=xx+(j===1?-1:1)*ww*.10;
+   bevelBlock(tx,zz-4,tw,td,8+podium,hh-podium,[.14,.24,.26],mat,.16);
+   // Offset service spine makes an asymmetric plan and breaks the flat side elevation.
+   world.box(tx-tw*.4,8+podium,zz-dd*.28,tw*.25,hh-podium+5,dd*.22,[.38,.40,.36],CONCRETE);
+   for(let y=podium+15;y<hh;y+=14)world.box(tx,y,zz-4+td/2+.15,tw*.70,.45,.4,[.36,.42,.40],STEEL);
+   westMassingStats.slender++;
+  }else{
+   let cut=old?.82:.72,lower=hh*cut;
+   world.box(xx,8+podium,zz,ww,Math.max(2,lower-podium),dd,c,mat);
+   // Upper storeys step back toward the hillside, leaving a genuine roof terrace.
+   world.box(xx-ww*.06,8+lower,zz-dd*.10,ww*.83,hh-lower,dd*.72,c,mat);
+   bounds(xx,zz,ww,lower-podium,dd,8+podium);bounds(xx-ww*.06,zz-dd*.10,ww*.83,hh-lower,dd*.72,8+lower);
+   for(let side of [-1,1])for(let y=16;y<lower+5;y+=old?4:6){
+    world.box(xx+side*ww*.23,y,zz+dd/2+1,ww*.32,.3,2.4,[.45,.43,.36],CONCRETE);
+    world.box(xx+side*ww*.23,y+.35,zz+dd/2+2.1,ww*.32,.85,.12,[.22,.27,.25],STEEL);
+   }
+   // Recessed-looking darker window bays alternate with solid party walls.
+   for(let k=-1;k<=1;k++)world.box(xx+k*ww*.25,14,zz+dd/2+.15,ww*.13,Math.max(2,lower-8),.2,[.12,.17,.16],[.5,.15,0,0]);
+   for(let y=20;y<lower;y+=7)world.box(xx, y,zz+dd/2+.4,ww,.3,.5,[.46,.43,.36],CONCRETE);
+   if(old)westMassingStats.oldWalkups++;
+  }
+  // Distinct roof plant, parapet and lift overrun, sized to each narrow lot.
+  let roofY=8+hh;
+  world.box(xx-ww*.18,roofY,zz-dd*.16,ww*.25,3+key%4,dd*.18,[.29,.31,.27],CONCRETE);
+  if(!slender)world.box(xx,roofY,zz+dd*.25,ww*.8,1.0,.5,[.38,.36,.30],CONCRETE);
+  for(let k=-1;k<=1;k++){
+   let sx=xx+k*ww*.29;
+   world.box(sx,8.2,zz+dd/2+.2,ww*.25,4.1,.25,[.04,.07,.065],[.3,.2,0,0]);
+   shopSign(world,sx,12.6,zz+dd/2+.6,ww*.27,1.5,(col+j+row)%3);
+   world.box(sx,12.3,zz+dd/2+1.4,ww*.28,.25,2.8,c,CONCRETE);
+  }
+  cityDetail.frontages++;cityDetail.awnings+=3;urbanStats.detailed++;westMassingStats.buildings++;
+ }
+ // Footway ties the whole parcel together instead of isolated paving squares.
+ world.box(x,8.08,z+d/2+4,w+2,.25,7,[.30,.29,.25],CONCRETE);
+}
 for(let side of [-1,1])for(let row=0;row<10;row++)for(let col=0;col<62;col++){
  let x=-4400+col*142+rand()*27,z=side<0?shoreline(x)-145-row*152:northshore(x)+110+row*150,w=34+rand()*52,d=38+rand()*55;
- if(!free(x,z,w,d)||(side>0&&Math.abs(x)<180&&z<1400))continue;
+ if(side<0&&row>=2){x=-4400+col*142;z=shoreline(x)-145-row*152;w=110;d=120;}
+ if(side<0&&x<-1750&&x>-4400&&row<5){w=116;d=Math.min(d,104);}
+ if(!free(x,z,w,d)||(side>0&&Math.abs(x)<180&&z<1400)||(side<0&&Math.max(hill(x-w/2,z-d/2),hill(x+w/2,z-d/2),hill(x,z))>8.1))continue;
  let center=Math.exp(-Math.pow((x-100)/1900,2)),h=side<0?40+rand()*60+center*rand()*150:35+rand()*125;if(row>5)h*=.75;if(side<0&&row===0)h=Math.min(h,55+rand()*45);if(side<0&&row===1)h=Math.min(h,90+rand()*85);
  let family=rand(),res=family>.72,stone=family>.4&&!res,mat=res?[.85,.05,0,7]:stone?[.75,.1,0,6]:BUILD;
  let c=res?[.25+rand()*.16,.24+rand()*.13,.22+rand()*.12]:stone?[.25+rand()*.17,.24+rand()*.13,.22+rand()*.10]:[.09+rand()*.12,.15+rand()*.12,.19+rand()*.12];
  urbanStats[res?'residential':stone?'stone':'glass']++;
  if(res)h*=.75;
  if(side<0&&x>-1200&&x<600){let focal=Math.max(Math.exp(-Math.pow((x+690)/260,2)),Math.exp(-Math.pow((x-160)/240,2)));if(row===0)h=Math.min(h,50+focal*25);if(row===1)h=Math.min(h,90+focal*50);if(row>2)h=Math.min(h,100+focal*70);}
+ const replaceWest=side<0&&x<-1750&&x>-4400&&row<5;
+ const westSnapshot=replaceWest?{vertices:world.a.length,boxes:collisionBoxes.length,frontages:cityDetail.frontages,awnings:cityDetail.awnings,balconies:cityDetail.balconies,detailed:urbanStats.detailed}:null;
  // Break up the repeated rectangular skyline with stepped masses, inset crowns and side wings.
  let variant=Math.floor(Math.abs(Math.sin(x*.038+z*.019)*137))%5;
- let wanDetailed=Math.abs(x)<2400&&row<4;
+ let wanDetailed=Math.abs(x)<2400&&(row<4||(side<0&&x>-1800&&x<900&&row<7));
  let split=wanDetailed?(variant===0?.65:variant===1?.77:variant===2?.56:.86):(variant===0?.68:variant===1?.78:variant===2?.56:1);
  if(wanDetailed&&variant%2===0)bevelBlock(x,z,w,d,7,h*split,c,mat,.12+variant*.025);else world.box(x,7,z,w,h*split,d,c,mat);
  if(split<1){let topW=w*(variant===0?.72:variant===1?.84:.55),topD=d*(variant===2?.68:.82);let dx=variant===2?w*.13:0;if(wanDetailed&&variant%2===0)bevelBlock(x+dx,z,topW,topD,7+h*split,h*(1-split),c,mat,.15);else world.box(x+dx,7+h*split,z,topW,h*(1-split),topD,c,mat);}
  if(variant===3&&h>65){world.box(x-w*.36,7,z,w*.24,h*.75,d*.78,c,mat);world.box(x+w*.36,7,z,w*.24,h*.85,d*.78,c,mat);}
  if(variant===4&&h>75){world.box(x,7+h,z,w*.8,3,d*.8,[.25,.29,.29],[.5,.55,0,0]);world.box(x,10+h,z,w*.18,5,d*.22,[.28,.31,.3],[.6,.4,0,0]);}
+ if(side<0&&x>-1500&&x<900&&row<4){
+  // Central commercial podiums: recessed arcade, stone canopy and rooftop plant.
+  for(let sx of [-1,1])world.box(x+sx*w*.43,7,z+d*.51,w*.08,9,2.2,[.32,.33,.31],[.8,.1,0,0]);
+  world.box(x,16,z+d*.53,w*1.06,1.1,5,[.38,.39,.35],[.65,.25,0,0]);
+  world.box(x,7+h,z,w*.28,3.5,d*.24,[.18,.21,.22],[.72,.3,0,0]);
+  for(let j=0;j<4;j++)world.box(x-w*.11+j*w*.075,10.6+h,z,w*.045,.35,d*.2,[.38,.4,.39],[.4,.6,0,0]);
+ }
  if(wanDetailed){
   let metal=[.39,.43,.42],stone=[.41,.4,.36];
   // Vertical piers, occasional projecting bay and strong recessed mechanical levels.
@@ -247,12 +355,27 @@ for(let side of [-1,1])for(let row=0;row<10;row++)for(let col=0;col<62;col++){
   if(variant===1){for(let side2 of [-1,1])world.rod([x+side2*tw*.43,top+2,z],[x+side2*tw*.43,top+9,z],.3,metal,[.4,.6,0,0]);world.rod([x-tw*.43,top+9,z],[x+tw*.43,top+9,z],.3,metal,[.4,.6,0,0]);}
   if(variant===3)world.rod([x,top+2,z],[x,top+12,z],.3,metal,[.4,.55,0,0]);
  }
- let detailed=Math.abs(x)<2400&&row<3;
+ let detailed=Math.abs(x)<2400&&(row<3||(side<0&&x>-1800&&x<900&&row<7));
  if(detailed){urbanStats.detailed++;cityDetail.frontages++;
  if(streetSamples.length<2&&side>0)streetSamples.push([x,z,w,d,h]);
+ // Raised footway follows each inland street frontage. It stops short of junctions.
+ if(side<0&&row>=2&&row<7&&x>-1800&&x<900){
+  let frontage=z+d/2;
+  world.box(x,8.07,frontage+2.0,w,.16,4.0,[.26,.27,.25],CONCRETE);
+  world.box(x,8.07,frontage+4.65,w,.22,.35,[.43,.43,.39],CONCRETE);
+  for(let tx=x-w/2+6;tx<x+w/2;tx+=6){
+   world.box(tx,8.235,frontage+2,.045,.012,3.7,[.17,.18,.17],[1,0,0,0]);
+  }
+  // A discreet threshold joins each doorway to the footway.
+  for(let tx=x-w/2+6;tx<x+w/2-3;tx+=12)
+   world.box(tx+2.8,8.235,frontage+.8,2.2,.04,1.2,[.35,.35,.32],CONCRETE);
+ }
  // Shop modules, projecting striped awnings and recessed glazed doors.
  for(let xx=x-w/2+6;xx<x+w/2-3;xx+=12){let idx=(col+Math.floor(xx/12)+row+1000)%4;
   world.box(xx,7.1,z+d/2+.3,10,4.2,.5,[.035,.075,.08],[.2,.25,0,0]);
+  world.box(xx-2.5,8.4,z+d/2+.58,3.7,2.5,.12,[.28,.23,.15],[.7,.05,.12,0]);
+  world.box(xx+2.8,8.1,z+d/2+.7,1.8,3.4,.12,[.08,.13,.14],[.3,.3,0,0]);
+  world.box(xx+3.4,8.5,z+d/2+.8,.06,.6,.06,[.65,.65,.58],[.25,.8,0,0]);
   shopSign(world,xx,11.4,z+d/2+4.1,10,1.7,idx);
   for(let k=0;k<6;k++)world.quad([xx-5+k*1.7,11.2,z+d/2+.5],[xx-5+k*1.7,10.4,z+d/2+4],[xx-3.3+k*1.7,10.4,z+d/2+4],[xx-3.3+k*1.7,11.2,z+d/2+.5],k%2?[.65,.59,.44]:[[.12,.3,.23],[.45,.12,.09],[.49,.35,.13],[.16,.26,.33]][idx],[.8,.05,0,0]);
   for(let dx of [-4.7,0,4.7])world.box(xx+dx,7.2,z+d/2+.65,.16,3.8,.16,[.44,.45,.4],[.3,.7,0,0]);cityDetail.awnings++;
@@ -279,6 +402,12 @@ for(let side of [-1,1])for(let row=0;row<10;row++)for(let col=0;col<62;col++){
   world.box(x,13.3,z+d/2+1,w+2,.35,3,[.32,.34,.31],CONCRETE);
  }
  if(rand()>.7)world.box(x,h+15,z,1,2,1,[.6,.12,.04],[.4,.1,1,0]);
+ if(replaceWest){
+  // The replacement geometry adds no further random calls.
+  world.a.length=westSnapshot.vertices;collisionBoxes.length=westSnapshot.boxes;
+  for(let k of ['frontages','awnings','balconies'])cityDetail[k]=westSnapshot[k];urbanStats.detailed=westSnapshot.detailed;
+  westernParcel(x,z,w,d,row,col);
+ }
 }
 // Polygonal towers with continuous facades, tapered crowns, mullions and mechanical floors.
 function tower(x,z,rings,shape,color,segments=28){for(let k=0;k<rings.length-1;k++){let [y0,rx0,rz0]=rings[k],[y1,rx1,rz1]=rings[k+1];for(let j=0;j<segments;j++){let a=TAU*j/segments,b=TAU*(j+1)/segments;function point(y,rx,rz,t){if(shape==='triangle'){let i=Math.round(t/TAU*3)%3,ang=i*TAU/3;return[x+Math.cos(ang)*rx,y,z+Math.sin(ang)*rz];}let cx=Math.cos(t),cz=Math.sin(t);let power=shape==='rounded'?.42:1;return[x+Math.sign(cx)*Math.pow(Math.abs(cx),power)*rx,y,z+Math.sign(cz)*Math.pow(Math.abs(cz),power)*rz];}let A=point(y0,rx0,rz0,a),B=point(y0,rx0,rz0,b),C=point(y1,rx1,rz1,b),D=point(y1,rx1,rz1,a);let u0=0;for(let q=0;q<j;q++)u0+=len(sub(point(y0,rx0,rz0,(q+1)*TAU/segments),point(y0,rx0,rz0,q*TAU/segments)))/55;let u1=u0+len(sub(B,A))/55;quad(A,D,C,B,color,BUILD,[[u0,y0/130.5],[u0,y1/130.5],[u1,y1/130.5],[u1,y0/130.5]]);if(k===rings.length-2)world.tri([x,y1,z],C,D,[.2,.24,.25],[.5,.6,0,0]);}}
@@ -650,6 +779,16 @@ function metroEntrance(x,z,index){
  world.quad([x-6.8,12.1,z-4.48],[x+6.8,12.1,z-4.48],[x+6.8,13.7,z-4.48],[x-6.8,13.7,z-4.48],[1,1,1],[.8,0,0,9],[[u0,1],[u1,1],[u1,0],[u0,0]]);
  for(let side of [-1,1])world.rod([x+side*6.5,8.5,z-4.8],[x+side*6.5,14,z-4.8],.15,frame,STEEL);
 }
+function stationPylon(x,z,index){
+ world.box(x,8.5,z,1.2,8,.8,[.25,.29,.29],STEEL);
+ world.box(x,14,z,5,3.6,.7,[.55,.035,.035],CONCRETE);
+ let u0=index/3+.004,u1=(index+1)/3-.004;
+ for(let side of [-1,1]){
+  let a=x-side*6,b=x+side*6,zz=z+side*.41;
+  world.quad([a,15,zz],[b,15,zz],[b,18.3,zz],[a,18.3,zz],[1,1,1],[.6,0,.1,9],[[u0,1],[u1,1],[u1,0],[u0,0]]);
+ }
+}
+stationPylon(-608,-754,0);stationPylon(-318,-764,1);
 metroEntrance(-620,-765,0);metroEntrance(-330,-775,1);metroEntrance(420,-1235,2);
 for(let [x,z0,z1] of [[-620,-765,shoreline(-620)-80],[-330,-775,shoreline(-330)-80],[420,-1235,-1145]]){
  world.box(x,8.28,(z0+z1)/2,12,.22,z1-z0,[.32,.33,.29],CONCRETE);
@@ -761,12 +900,14 @@ for(let x of [-600,-440,-280]){
 }
 // Secondary urban streets follow the existing procedural block spacing on both banks.
 // Test each segment against real building collision bounds, so lanes do not run through towers.
+const extendedStreetSegments=[];
 let innerStats={eastWest:0,crossStreet:0,streetlights:0,crossings:0};
 function streetSurface(x,z,w,d,y,c,m){world.quad([x-w/2,y,z-d/2],[x-w/2,y,z+d/2],[x+w/2,y,z+d/2],[x+w/2,y,z-d/2],c,m);}
-function openStreet(x,z,w,d){return !collisionBoxes.some(b=>b.y>=6&&b.h>20&&Math.abs(x-b.x)<(w+b.w)*.5+3&&Math.abs(z-b.z)<(d+b.d)*.5+3);}
+function openStreet(x,z,w,d){return !collisionBoxes.some(b=>b.y>=6&&b.y+b.h>10&&Math.abs(x-b.x)<(w+b.w)*.5+3&&Math.abs(z-b.z)<(d+b.d)*.5+3);}
 for(let side of [-1,1])for(let row=0;row<6;row++){
- for(let x=-2300;x<2300;x+=20){let z=side<0?shoreline(x)-221-row*152:northshore(x)+185+row*150;
+ for(let x=-4400;x<2300;x+=20){let z=side<0?shoreline(x)-221-row*152:northshore(x)+185+row*150;
   if(!openStreet(x+10,z,20,24))continue;innerStats.eastWest++;
+  if(side<0&&x<-2300)extendedStreetSegments.push({x,z,row});
   let furnitureIndex=Math.round((x+2300)/20)+row;
   if(furnitureIndex%9===0){let zz=z+10;world.box(x+8,8.5,zz,4,.4,1,[.32,.21,.12],CONCRETE);world.box(x+8,8.9,zz+.4,4,.85,.16,[.32,.21,.12],CONCRETE);world.box(x+13,8.5,zz,.9,1.3,.9,[.1,.28,.23],CONCRETE);for(let dx of [2,17])world.rod([x+dx,8.5,zz-1.7],[x+dx,9.3,zz-1.7],.13,[.4,.42,.38],STEEL);cityDetail.streetFurniture++;}
   // Double yellow kerb lines and individual paving joints.
@@ -799,11 +940,293 @@ for(let side of [-1,1])for(let col=0;col<16;col++){let x=-2160+col*284;
  }
 }
 // Broad, layered island mountain backdrop follows the city instead of isolated cones.
-function hill(x,z){let edge=clamp((-z-1650)/1250,0,1);let peak=250*Math.exp(-Math.pow((x+900)/950,2))+165*Math.exp(-Math.pow((x-550)/1050,2))+65*Math.exp(-Math.pow((x+2200)/700,2));let ridges=24*Math.sin(x*.0021)+15*Math.sin(x*.0044+z*.0005)+30*Math.cos((z+2600)*.0012);return edge*Math.max(0,100+peak+ridges);}
-for(let ix=0;ix<100;ix++)for(let iz=0;iz<18;iz++){let x=-6500+ix*130,z=-1650-iz*140,pp=[[x,hill(x,z),z],[x+130,hill(x+130,z),z],[x+130,hill(x+130,z-140),z-140],[x,hill(x,z-140),z-140]];for(let j of [0,1,2,0,2,3]){let p=pp[j],n=norm([hill(p[0]-3,p[2])-hill(p[0]+3,p[2]),6,hill(p[0],p[2]-3)-hill(p[0],p[2]+3)]);world.a.push(...p,...n,0,0,.045,.075,.075,.95,.02,0,0);}}
+// Interpret the ridges behind Central as separate peaks and gullies rather than one green wall.
+function hill(x,z){
+ let depth=-z-1750,fade=clamp(depth/1150,0,1);fade=fade*fade*(3-2*fade);
+ let peak=300*Math.exp(-Math.pow((x+950)/510,2))+195*Math.exp(-Math.pow((x-300)/580,2))+130*Math.exp(-Math.pow((x+2200)/480,2));
+ let folded=40*Math.sin(x*.0025+z*.0006)+24*Math.sin(x*.0051-z*.0008);
+ let gullies=48*Math.pow(Math.max(0,Math.sin(x*.004+z*.0014)),4);
+ let detail=12*Math.sin(x*.011+z*.009)+7*Math.sin(x*.019-z*.016);
+ return fade*Math.max(0,85+peak+folded-gullies+detail);
+}
+for(let ix=0;ix<200;ix++)for(let iz=0;iz<36;iz++){
+ let x=-6500+ix*65,z=-1750-iz*70,pp=[[x,hill(x,z),z],[x+65,hill(x+65,z),z],[x+65,hill(x+65,z-70),z-70],[x,hill(x,z-70),z-70]];
+ for(let j of [0,1,2,0,2,3]){let p=pp[j],n=norm([hill(p[0]-3,p[2])-hill(p[0]+3,p[2]),6,hill(p[0],p[2]-3)-hill(p[0],p[2]+3)]);
+  let slope=1-n[1],vegetation=.5+.5*Math.sin(p[0]*.008+p[2]*.013)*Math.cos(p[2]*.019-p[0]*.004),rock=clamp((slope-.22)*1.6,0,.45),haze=clamp((-p[2]-2400)/2600,0,.23);
+  let c=[.045+vegetation*.026+rock*.065,.085+vegetation*.035+rock*.035,.055+vegetation*.02+rock*.04];c=c.map((v,i)=>mix(v,[.19,.23,.23][i],haze));
+  world.a.push(...p,...n,0,0,...c,.95,.02,0,0);
+ }
+}
+// Sheung Wan reference-led blockout. Dimensions remain game-scale approximations.
+const sheungWanStats={towers:2,tenements:0,piers:4};
+// Shun Tak: shared podium, paired glazed towers with red perimeter frames.
+world.box(-1450,8,-805,270,22,115,[.33,.34,.32],CONCRETE);
+for(let x of [-1525,-1375]){
+ bevelBlock(x,-805,74,64,30,135,[.14,.24,.26],BUILD,.12);
+ for(let dx of [-35,35])for(let dz of [-30,30])world.box(x+dx,30,-805+dz,3.3,137,3.3,[.47,.075,.045],STEEL);
+ for(let y of [31,68,106,163])world.box(x,y,-772,74,3,2,[.49,.085,.055],STEEL);
+ world.box(x,165,-805,72,4,62,[.43,.08,.05],STEEL);
+ for(let y=36;y<160;y+=4.2)world.box(x,y,-772.7,68,.3,.35,[.31,.36,.34],STEEL);
+}
+// Terminal extends beyond the shore; bridge clears the waterfront road.
+world.box(-1450,4,-475,240,9,155,[.29,.30,.28],CONCRETE);
+world.box(-1450,13,-475,220,12,120,[.33,.38,.37],BUILD);
+world.box(-1450,25,-475,226,1.2,126,[.22,.29,.25],CONCRETE);
+world.box(-1450,20,-650,24,2,240,[.39,.40,.37],CONCRETE);
+world.box(-1450,26,-650,25,.8,240,[.24,.29,.28],STEEL);
+for(let x of [-1540,-1480,-1420,-1360]){world.box(x,4,-363,28,3,72,[.30,.31,.28],CONCRETE);world.box(x,10,-383,20,1,32,[.46,.47,.42],STEEL);}
+landmark('信德中心 · 港澳碼頭',[-1450,185,-805],85);
+// Narrow adjoining lots, two parallel streets and breaks for cross lanes.
+for(let row=0;row<3;row++)for(let col=0;col<17;col++){
+ if(col===5||col===11)continue;
+ let x=-2270+col*29,z=-955-row*142,w=26,d=58,h=23+((col*17+row*11)%53);
+ let colors=[[.42,.38,.30],[.33,.36,.33],[.39,.30,.25],[.29,.32,.34]];
+ world.box(x,8,z,w,h,d,colors[(col+row)%4],[.86,.05,0,7]);
+ world.box(x,8+h,z,w+1,.8,d+1,[.30,.31,.28],CONCRETE);
+ world.box(x+5,9+h,z-10,9,4,12,[.33,.34,.29],CONCRETE);
+ for(let y=15;y<h+4;y+=7){world.box(x,y,z+30,w,.7,3,[.42,.41,.35],CONCRETE);for(let dx of [-8,0,8])world.box(x+dx,y+1,z+30,1.8,1.2,1,[.46,.47,.42],STEEL);}
+ world.box(x,8.3,z+29.4,w-2,4,.3,[.035,.055,.05],[.22,.45,0,0]);
+ shopSign(world,x,12.4,z+30,w-1,2.3,(col+row)%3);
+ world.box(x,12,z+31,w,0.3,3,[.24,.18,.12],CONCRETE);
+ // Side walls, rooftop parapets and rainwater pipes remain visible during low passes.
+ for(let side of [-1,1]){
+  world.box(x+side*(w/2-.35),9+h,z,.7,1.3,d,[.36,.35,.30],CONCRETE);
+  world.rod([x+side*11,8.4,z+29.5],[x+side*11,7+h,z+29.5],.12,[.26,.27,.24],STEEL);
+  for(let y=17;y<h+4;y+=7)for(let dz of [-18,-6,6,18])world.box(x+side*(w/2+.06),y,z+dz,.15,3.4,2.6,[.08,.12,.12],[.4,.2,0,0]);
+ }
+ for(let dz of [-28.6,28.6])world.box(x,9+h,z+dz,w,1.3,.7,[.36,.35,.30],CONCRETE);
+ // Street-facing rear shops: the old model only detailed the opposite frontage.
+ world.box(x,8.3,z-29.2,w-2,4,.3,[.045,.07,.065],[.3,.2,0,0]);
+ world.box(x,12.5,z-30,w,.35,3,[.28,.19,.13],CONCRETE);
+ for(let dx of [-8,0,8])world.box(x+dx,8.5,z-29.6,.3,4,.3,[.43,.42,.36],STEEL);
+ for(let y=16;y<h+3;y+=7){world.box(x,y,z-29.5,w,.5,1.5,[.38,.37,.32],CONCRETE);}
+ sheungWanStats.tenements++;
+}
+for(let z of [-1008,-1150,-1292]){
+ world.box(-2038,8.2,z,510,.12,24,[.075,.085,.085],CONCRETE);
+ for(let dz of [-13,13])world.box(-2038,8.35,z+dz,510,.35,3,[.29,.29,.26],CONCRETE);
+ for(let x=-2280;x<-1800;x+=16)world.box(x,8.38,z,7,.025,.2,[.68,.64,.47],CONCRETE);
+}
+// Tram rails along the northern street edge, kept clear of the tenement frontages.
+for(let dz of [-3.5,-2.1,2.1,3.5])world.box(-2038,8.45,-1008+dz,510,.08,.12,[.43,.44,.42],STEEL);
+
+// Connected western streets: continuous footways and two cross lanes through reserved gaps.
+const westernStreetStats={crossLanes:2,tramPoles:0,shelters:2,vehicles:4};
+for(let z of [-1008,-1150,-1292]){
+ // Broad pavement meets the shop backs; cover leftover blank plots between carriageway and frontage.
+ streetSurface(-2038,z+18,510,11,8.48,[.32,.31,.27],CONCRETE);
+ for(let x=-2280;x<-1795;x+=9)streetSurface(x,z+18,.10,11,8.49,[.25,.25,.22],CONCRETE);
+ for(let x of [-2125,-1951]){
+  for(let j=-4;j<=4;j++)streetSurface(x+j*1.6,z,0.85,20,8.51,[.70,.67,.55],PAINT);
+  for(let dz of [-13,13])world.box(x,8.65,z+dz,13,.12,1.3,[.62,.53,.24],CONCRETE);
+ }
+}
+for(let x of [-2125,-1951]){
+ streetSurface(x,-1120,18,365,8.39,[.085,.095,.09],CONCRETE);
+ for(let dx of [-10,10])streetSurface(x+dx,-1120,2,365,8.44,[.31,.30,.26],CONCRETE);
+}
+// Overhead tram catenary and kerbside lamps; no wires across the flight corridor at altitude.
+for(let x=-2270;x<=-1810;x+=46){
+ westernStreetStats.tramPoles++;
+ world.rod([x,8.5,-1022],[x,17,-1022],.12,[.22,.25,.23],STEEL);
+ world.rod([x,16.5,-1022],[x,16.5,-1008],.07,[.25,.28,.26],STEEL);
+ world.box(x,16.1,-1017,1.6,.22,1,[.60,.57,.42],LIGHT);
+ if(x<-1810)for(let dz of [-2.8,2.8])world.rod([x,16.4,-1008+dz],[x+46,16.4,-1008+dz],.035,[.16,.19,.18],STEEL);
+}
+for(let x of [-2190,-1870]){
+ for(let dx of [-6,6])world.rod([x+dx,8.5,-990],[x+dx,12,-990],.1,[.33,.36,.34],STEEL);
+ world.box(x,12,-990,15,.3,4,[.23,.29,.27],STEEL);
+ world.box(x,9,-988.7,12,.4,1.2,[.39,.29,.17],CONCRETE);
+ world.box(x+8,8.5,-990,.2,5,.2,[.48,.44,.29],STEEL);
+ world.box(x+8,12,-990,1.7,1.5,.2,[.48,.16,.08],CONCRETE);
+}
+
+// Individually authored neighbouring landmarks; game-scale positions, not GIS footprints.
+const westernLandmarks=[
+ {name:'永安中心',x:-1200,z:-840,w:112,d:70,height:112},
+ {name:'中遠大廈',x:-1385,z:-1110,w:72,d:68,height:220},
+ {name:'新紀元廣場低座',x:-1230,z:-1100,w:66,d:66,height:116}
+];
+// Wing On: broad retail base, gold-beige spandrels and continuous dark window bands.
+world.box(-1200,8,-840,128,17,88,[.42,.36,.25],CONCRETE);
+world.box(-1200,25,-840,112,95,70,[.36,.30,.20],[.42,.45,0,0]);
+for(let y=28;y<117;y+=3.4){
+ for(let side of [-1,1])world.box(-1200,y,-840+side*35.15,110,1.65,.35,[.075,.12,.13],[.26,.55,0,0]);
+ for(let side of [-1,1])world.box(-1200+side*56.15,y,-840,.35,1.65,69,[.075,.12,.13],[.26,.55,0,0]);
+}
+for(let dx=-52;dx<=52;dx+=8)for(let side of [-1,1])world.box(-1200+dx,25,-840+side*35.5,.65,95,.65,[.49,.42,.28],STEEL);
+world.box(-1200,120,-840,114,2,72,[.46,.40,.29],CONCRETE);
+world.box(-1200,122,-844,66,5,38,[.30,.29,.25],CONCRETE);
+for(let dx=-54;dx<=54;dx+=12){world.box(-1200+dx,8.5,-795.7,9,6,.25,[.055,.10,.11],[.25,.4,0,0]);world.box(-1200+dx,15,-794,10,.5,4,[.44,.36,.23],STEEL);}
+shopSign(world,-1200,17,-795.3,74,4.7,8);
+landmark('永安中心',[-1200,132,-840],112);
+// COSCO: faceted glazed shaft with stone ribs and a recessed mechanical crown.
+bevelBlock(-1385,-1110,88,84,8,16,[.30,.30,.27],CONCRETE,.12);
+bevelBlock(-1385,-1110,72,68,24,196,[.12,.23,.25],BUILD,.18);
+bevelBlock(-1385,-1110,64,60,220,8,[.27,.31,.29],STEEL,.18);
+for(let dx of [-23,23])for(let side of [-1,1])world.box(-1385+dx,24,-1110+side*34.4,2.2,196,.8,[.42,.43,.39],CONCRETE);
+for(let y=29;y<218;y+=4.5)for(let side of [-1,1])world.box(-1385,y,-1110+side*34.2,44,.35,.5,[.35,.40,.38],STEEL);
+for(let y=12;y<23;y+=2)world.box(-1385,y,-1067.6,66,.45,.5,[.47,.46,.40],STEEL);
+shopSign(world,-1385,19,-1067.1,47,3.6,9);
+landmark('中遠大廈',[-1385,235,-1110],220);
+// Low block and shared landscaped piazza. Keep a gap between the two towers.
+bevelBlock(-1230,-1100,66,66,8,108,[.37,.38,.34],BUILD,.09);
+for(let dx of [-29,-15,0,15,29])for(let side of [-1,1])world.box(-1230+dx,8,-1100+side*33.4,2,108,.8,[.53,.51,.43],CONCRETE);
+world.box(-1230,116,-1100,68,2,68,[.47,.45,.38],CONCRETE);
+shopSign(world,-1230,15,-1066,54,3.2,10);
+landmark('新紀元廣場低座',[-1230,125,-1100],108);
+world.box(-1305,8.15,-1080,64,.25,98,[.40,.38,.32],CONCRETE);
+// Basin uses a shallow circular mesh, with a bronze central fountain stem.
+for(let j=0;j<32;j++){let a=j*TAU/32,b=(j+1)*TAU/32;world.tri([-1305,9.05,-1080],[-1305+10*Math.cos(a),9.05,-1080+10*Math.sin(a)],[-1305+10*Math.cos(b),9.05,-1080+10*Math.sin(b)],[.10,.20,.19],[.22,.4,0,0]);world.rod([-1305+10*Math.cos(a),9,-1080+10*Math.sin(a)],[-1305+10*Math.cos(b),9,-1080+10*Math.sin(b)],.5,[.48,.44,.35],CONCRETE);}
+world.rod([-1305,9,-1080],[-1305,13,-1080],.65,[.20,.22,.12],STEEL);
+for(let z of [-1117,-1045])for(let x of [-1326,-1280]){world.box(x,8.4,z,6,.7,6,[.34,.32,.27],CONCRETE);streetTree(x,z);}
+
+// Western district first pass: interpreted coordinates, not surveyed footprints.
+function heritageBlock(x,z,w,d,h,clock=false){
+ let brick=[.38,.16,.11],stone=[.55,.52,.43],roof=[.19,.22,.2],glass=[.035,.065,.065];
+ world.box(x,8,z,w,h,d,brick,CONCRETE);
+ for(let y of [8,8+h*.5,8+h])world.box(x,y,z,w+1,.65,d+1,stone,CONCRETE);
+ for(let xx=x-w/2+4;xx<x+w/2;xx+=8){
+  for(let y of [10,10+h*.5]){
+   world.box(xx,y,z+d/2+.15,3.8,h*.3,.2,glass,[.3,.15,0,0]);
+   world.rod([xx-2,y,z+d/2+.4],[xx-2,y+h*.3,z+d/2+.4],.24,stone);
+   world.rod([xx+2,y,z+d/2+.4],[xx+2,y+h*.3,z+d/2+.4],.24,stone);
+   for(let j=0;j<8;j++){let a=j*PI/8,b=(j+1)*PI/8;world.rod([xx+2*Math.cos(a),y+h*.3+2*Math.sin(a),z+d/2+.4],[xx+2*Math.cos(b),y+h*.3+2*Math.sin(b),z+d/2+.4],.24,stone);}
+  }
+ }
+ for(let sign of [-1,1])world.quad([x-w/2-1,8+h,z+sign*(d/2+1)],[x+w/2+1,8+h,z+sign*(d/2+1)],[x+w/2+1,14+h,z],[x-w/2-1,14+h,z],roof,CONCRETE);
+ if(clock){world.box(x,8+h,z+d/2-4,10,15,10,stone,CONCRETE);world.box(x,22+h,z+d/2-4,13,1,13,roof,CONCRETE);world.box(x,16+h,z+d/2+1.1,5,5,.18,[.8,.77,.64],CONCRETE);world.rod([x,18.5+h,z+d/2+1.3],[x,20.5+h,z+d/2+1.3],.13,glass);world.rod([x,18.5+h,z+d/2+1.3],[x+1.5,18.5+h,z+d/2+1.3],.13,glass);}
+}
+heritageBlock(-1650,-900,72,42,19);
+for(let dx of [-34,34])for(let dz of [-19,19]){world.box(-1650+dx,8,-900+dz,8,25,8,[.4,.17,.12],CONCRETE);for(let y=10;y<33;y+=4)world.box(-1650+dx,y,-900+dz,8.4,.7,8.4,[.56,.53,.45],CONCRETE);}
+landmark('上環 · 西港城（概念模型）',[-1650,48,-900],40);
+// Campus entrance terrace and colonnade, interpreted rather than surveyed.
+world.box(-3250,8.04,-1385,148,.18,66,[.40,.39,.34],CONCRETE);
+for(let dx of [-24,-16,-8,8,16,24]){
+ world.rod([-3250+dx,8.3,-1418],[-3250+dx,17.5,-1418],.65,[.62,.58,.48],CONCRETE);
+ world.box(-3250+dx,8.2,-1418,2.1,.65,2.1,[.57,.54,.45],CONCRETE);
+ world.box(-3250+dx,17.2,-1418,2.2,.7,2.2,[.64,.60,.50],CONCRETE);
+}
+world.box(-3250,17.9,-1418,54,1.2,5,[.59,.55,.46],CONCRETE);
+for(let dx of [-64,64])for(let dz of [-1390,-1365]){
+ world.box(-3250+dx,8.2,dz,9,.6,9,[.33,.32,.28],CONCRETE);
+ streetTree(-3250+dx,dz);
+}
+// University courtyard ensemble; individual wings leave the quadrangle open.
+heritageBlock(-3250,-1435,130,24,20,true);
+heritageBlock(-3305,-1500,20,106,18);
+heritageBlock(-3195,-1500,20,106,18);
+heritageBlock(-3250,-1550,130,22,18);
+world.box(-3250,8.08,-1495,85,.2,65,[.16,.23,.13],CONCRETE);
+for(let j=0;j<8;j++)world.box(-3250,8.1+j*.14,-1418+j*.8,28,.14,1.0,[.45,.44,.39],CONCRETE);
+landmark('香港大學 · 本部大樓（概念模型）',[-3250,65,-1435],50);
+// Western harbour promenade with shelters and piers.
+for(let x=-3900;x<-2300;x+=160){let z=shoreline(x);world.box(x,8.15,z-14,145,.25,14,[.27,.29,.27],CONCRETE);for(let dx of [-55,0,55]){world.rod([x+dx,8.4,z-8],[x+dx,15,z-8],.13,[.24,.27,.26]);world.box(x+dx,15,z-8,1.2,.25,2,[.62,.6,.46],[.4,.2,.3,0]);}if(x%320===-60){world.box(x,7,z+35,24,1.2,80,[.29,.3,.28],CONCRETE);}}
+landmark('西環海旁',[-3000,26,shoreline(-3000)],20);
 // Tram rails are an interpreted short street segment, not a surveyed route.
 for(let zz of [-988.5,-987.1]){world.rod([1080,8.5,zz],[1350,8.5,zz],.055,[.4,.43,.44],[.25,.8,0,0]);}
 for(let xx=1080;xx<=1350;xx+=45){world.rod([xx,8.5,-973],[xx,16,-973],.09,[.25,.29,.28]);world.rod([xx,16,-973],[xx,16,-989],.06,[.25,.29,.28]);if(xx<1350)world.rod([xx,16,-987.8],[xx+45,16,-987.8],.035,[.15,.18,.18]);}
+// Connect new western building frontages to the extended inner streets.
+let westGroundStats={pavedFrontages:0,crossLinks:0,trafficRoutes:0};
+for(let p of westernParcels){
+ if(p.row===0)continue;
+ let front=p.z+p.d/2,road=shoreline(p.x)-145-p.row*152+76,edge=road-10;
+ let depth=edge-front;
+ if(depth>7&&openStreet(p.x,(front+edge)/2,p.w-7,depth-7)){
+  streetSurface(p.x,(front+edge)/2,p.w,depth,8.5,[.28,.28,.25],CONCRETE);
+  world.box(p.x,8.5,edge,p.w,.3,.45,[.46,.45,.39],CONCRETE);
+  for(let x=p.x-p.w/2+4;x<p.x+p.w/2;x+=8)streetSurface(x,(front+edge)/2,.08,depth,8.51,[.22,.23,.21],CONCRETE);
+  for(let dz=front+4;dz<edge;dz+=6)streetSurface(p.x,dz,p.w,.07,8.52,[.22,.23,.21],CONCRETE);
+  westGroundStats.pavedFrontages++;
+ }
+}
+// Lane connectors occupy the narrow gaps between authored parcels only when clear.
+for(let row=0;row<4;row++)for(let x=-4330;x<-2340;x+=142){
+ let a=shoreline(x)-221-row*152,b=a-152;
+ for(let z=b;z<a;z+=12){
+  if(!openStreet(x,z+6,10,12))continue;
+  streetSurface(x,z+6,10,12,8.3,[.085,.095,.095],ROAD);westGroundStats.crossLinks++;
+ }
+}
+// Aggregate continuous paved segments; moving traffic never uses an unpainted gap.
+const extendedTrafficRoutes=[];
+for(let row=0;row<6;row++){
+ let run=null;
+ for(let seg of extendedStreetSegments.filter(s=>s.row===row)){
+  if(!run||seg.x!==run.end){if(run&&run.end-run.start>=160)extendedTrafficRoutes.push(run);run={start:seg.x,end:seg.x+20,row};}
+  else run.end=seg.x+20;
+ }
+ if(run&&run.end-run.start>=160)extendedTrafficRoutes.push(run);
+}
+westGroundStats.trafficRoutes=extendedTrafficRoutes.length;
+// Central transport streetscape: recognisable physical facilities at interpreted positions.
+const centralTransit={roadSegments:0,busStops:0,tramStops:0,stationPylons:2};
+const centralTramRuns=[];let centralRun=null;
+for(let x=-590;x<-150;x+=10){
+ if(!openStreet(x+5,-735,10,16)){if(centralRun&&centralRun.end-centralRun.start>70)centralTramRuns.push(centralRun);centralRun=null;continue;}
+ centralTransit.roadSegments++;
+ if(!centralRun)centralRun={start:x,end:x+10};else centralRun.end=x+10;
+ streetSurface(x+5,-735,10,16,8.6,[.07,.08,.085],ROAD);
+ for(let z of [-746,-724])if(openStreet(x+5,z,10,5))streetSurface(x+5,z,10,5,8.7,[.34,.33,.29],CONCRETE);
+ for(let dz of [-3.5,-2.1,2.1,3.5])world.box(x+5,8.72,-735+dz,10,.07,.11,[.5,.51,.47],STEEL);
+ for(let z of [-742,-728])streetSurface(x+5,z,8,.16,8.73,[.76,.61,.18],PAINT);
+ if(x%40===-30){world.rod([x,8.7,-745],[x,16,-745],.12,[.27,.29,.28],STEEL);world.rod([x,16,-745],[x,16,-735],.06,[.27,.29,.28],STEEL);}
+ for(let z of [-737.8,-732.2])world.rod([x,15.7,z],[x+10,15.7,z],.035,[.18,.2,.19],STEEL);
+}
+if(centralRun&&centralRun.end-centralRun.start>70)centralTramRuns.push(centralRun);
+for(let [x,z,tram] of [[-410,-747,true],[-260,-723,true],[-520,-750,false],[-195,-750,false]]){
+ if(!openStreet(x,z,22,5))continue;
+ world.box(x,8.7,z,22,.4,4,[.42,.41,.35],CONCRETE);
+ for(let dx of [-9,9])world.rod([x+dx,9,z],[x+dx,13,z],.12,[.36,.4,.38],STEEL);
+ world.box(x,13,z,22,.3,4.5,tram?[.11,.29,.24]:[.47,.18,.10],STEEL);
+ world.box(x,9.2,z,12,.4,.8,[.32,.24,.15],CONCRETE);
+ for(let dx of [-9,9])world.box(x+dx,9.2,z+1.6,.15,3,1,[.3,.4,.4],STEEL);
+ shopSign(world,x,13.3,z+2.3,20,2.1,tram?12:11);
+ world.box(x+12,8.7,z,.25,6,.25,[.4,.42,.39],STEEL);
+ shopSign(world,x+12,13,z+.2,3,2.7,tram?12:11);
+ if(!tram)centralTransit.busStops++;else centralTransit.tramStops++;
+ for(let k=-4;k<=4;k++)streetSurface(x+14+k*1.3,-735,.65,14,8.76,[.72,.69,.57],PAINT);
+}
+// Connect station threshold to the tram-street pavement.
+for(let [x,z] of [[-330,-775],[-620,-765]]){
+ let edge=-748,front=z+7;
+ if(edge>front)streetSurface(x,(edge+front)/2,16,edge-front,8.65,[.34,.33,.29],CONCRETE);
+}
+// Central street-block infill: occupy vacant lots, not the entire protected landmark rectangle.
+// This is an interpreted density pass, not an address-accurate building dataset.
+const centralInfillStats={buildings:0,shopfronts:0};
+for(let x=-1500;x<=800;x+=34)for(let z=-1580;z<=-760;z+=34){
+ let shore=shoreline(x),inland=shore-145-z;
+ if(inland<60||hill(x,z)>8.1)continue;
+ // Preserve the existing north/south procedural street and east/west road grid.
+ let gx=Math.abs(((x+4400+71)%142+142)%142-71),gz=Math.abs(((inland+76)%152+152)%152-76);
+ if(71-gx<20||76-gz<20)continue;
+ if(z>-758&&x>-610&&x<-130)continue; // Central tram street.
+ if([[-620,-765],[-330,-775],[420,-1235]].some(a=>Math.hypot(x-a[0],z-a[1])<35))continue;
+ // Use the actual solid buildings instead of the large reserved placeholders.
+ if(collisionBoxes.some(b=>b.y<35&&b.h>5&&Math.abs(x-b.x)<(23+b.w)/2+5&&Math.abs(z-b.z)<(23+b.d)/2+5))continue;
+ let seed=Math.abs(Math.sin(x*.047+z*.023)),h=24+Math.floor(seed*55),w=22,d=22;
+ let tone=[[.33,.34,.31],[.38,.34,.29],[.27,.32,.33],[.40,.37,.32]][Math.floor(seed*4)%4];
+ world.box(x,8,z,w,h,d,tone,[.85,.05,0,7]);
+ world.box(x,8+h,z,w*.77,4,d*.7,tone,CONCRETE);
+ for(let y=17;y<h;y+=8){world.box(x,y,z+d/2+.2,w,.45,.6,[.42,.41,.35],CONCRETE);for(let dx of [-6,2])world.box(x+dx,y+1,z+d/2+.5,2,1.2,1,[.46,.45,.4],CONCRETE);}
+ for(let dx of [-6,4]){world.box(x+dx,8.3,z+d/2+.3,8,4,.25,[.045,.08,.075],[.3,.2,0,0]);shopSign(world,x+dx,12.4,z+d/2+.5,9,1.6,Math.floor(seed*4)%4);centralInfillStats.shopfronts++;}
+ centralInfillStats.buildings++;
+}
+// Upgrade every neutral, upward-facing ground slab, while retaining road paint,
+// plants, roofs and existing specialised materials. All map regions use this pass.
+function upgradeGroundMaterials(builder){
+ let stats={pavingVertices:0,asphaltVertices:0};
+ for(let i=0;i<builder.a.length;i+=15){let a=builder.a;
+  if(a[i+14]!==0||a[i+13]!==0||a[i+11]<.7||a[i+4]<.9||a[i+1]<7.9||a[i+1]>9.4)continue;
+  let r=a[i+8],g=a[i+9],b=a[i+10];
+  if(Math.max(r,g,b)>.52||g>r*1.3||r>g*1.6)continue;
+  let asphalt=Math.max(r,g,b)<.14;
+  a[i+14]=asphalt?19:18;stats[asphalt?'asphaltVertices':'pavingVertices']++;
+ }
+ return stats;
+}
+const groundMaterialStats=upgradeGroundMaterials(world);
 let worldMesh=world.mesh(),wetMesh=wet.mesh(),waterMesh=waterB.mesh();
 function ferryGeometry(){let b=new Builder(),green=[.055,.23,.14],cream=[.62,.61,.49],glass=[.025,.075,.09],m=[.45,.25,0,0];
  let rings=[[-25,0],[-20,5.5],[-12,6],[12,6],[20,5.5],[25,0]];
@@ -826,8 +1249,28 @@ const roadMeshes={};for(let type of ['bus','taxi','car','tram']){let b=new Build
 // Only route traffic along contiguous sections clear of collision geometry.
 const roadRoutes=[[],[]];for(let lane=0;lane<2;lane++){let start=null;for(let x=-1450;x<=1650;x+=4){let z=shoreline(x)-(lane?60:72),clear=x<1650&&!firstCollision([x,8.3,z],[x,13.5,z],7);if(clear&&start===null)start=x;if(!clear&&start!==null){if(x-start>100)roadRoutes[lane].push([start+8,x-12]);start=null;}}}
 function roadVehicle(i,t=time){let lane=i%2,dir=lane?1:-1,routes=roadRoutes[lane],route=routes[Math.floor(i/2)%routes.length],L=route[1]-route[0],speed=7+(i%3)*2,x=route[0]+((i*47+t*speed*dir)%L+L)%L,z=shoreline(x)-(lane?60:72),slope=(shoreline(x+1)-shoreline(x-1))/2;return{pos:[x,8.3,z],yaw:-Math.atan(slope)+(dir<0?PI:0),type:i%5===0?'bus':i%3===0?'car':'taxi'};}
+// Local traffic stays on the authored western carriageways; study previews freeze it.
+function westernVehicle(i,t=time){
+ let tram=i<2,z=tram?-1008+(i===0?-2.8:2.8):-1150+(i===2?-5:5);
+ let phase=t*(tram?.014:.019)+i*1.5,x=-2035+205*Math.sin(phase);
+ return{pos:[x,8.5,z],yaw:Math.cos(phase)<0?PI:0,type:tram?'tram':i===2?'taxi':'bus'};
+}
+function extendedStreetVehicle(i,t=time){
+ if(!extendedTrafficRoutes.length)return null;
+ let r=extendedTrafficRoutes[i%extendedTrafficRoutes.length],dir=i%2?-1:1,L=r.end-r.start-30;
+ let x=r.start+15+((t*(6+i%3)*dir+i*67)%L+L)%L;
+ let z=shoreline(x)-221-r.row*152+(dir>0?-3.5:3.5),slope=(shoreline(x+1)-shoreline(x-1))/2;
+ return{pos:[x,8.4,z],yaw:-Math.atan(slope)+(dir<0?PI:0),type:i%4===0?'bus':i%3===0?'car':'taxi'};
+}
+function centralTram(i,t=time){
+ if(!centralTramRuns.length)return null;let r=centralTramRuns[i%centralTramRuns.length],phase=t*.028+i*PI;
+ return{pos:[(r.start+r.end)/2+((r.end-r.start)/2-12)*Math.sin(phase),8.7,-735+(i?-2.8:2.8)],yaw:Math.cos(phase)<0?PI:0};
+}
 function drawHarbourTraffic(isRef){
  let trafficTime=mode==='study'?0:time;for(let i=0;i<18;i++){let v=roadVehicle(i,trafficTime);draw(roadMeshes[v.type],model(v.pos,v.yaw));}
+ for(let i=0;i<4;i++){let v=westernVehicle(i,trafficTime);draw(roadMeshes[v.type],model(v.pos,v.yaw));}
+ for(let i=0;i<12;i++){let v=extendedStreetVehicle(i,trafficTime);if(v)draw(roadMeshes[v.type],model(v.pos,v.yaw));}
+ for(let i=0;i<2;i++){let v=centralTram(i,trafficTime);if(v)draw(roadMeshes.tram,model(v.pos,v.yaw));}
  let tx=1215+120*Math.sin(trafficTime*.025);draw(roadMeshes.tram,model([tx,8.4,-987.8],Math.cos(trafficTime*.025)<0?PI:0));
 for(let i=0;i<4;i++){let f=ferryState(i);draw(ferryMesh,model(f.pos,f.yaw,0,f.roll));if(!isRef)draw(wakeMesh,model([f.pos[0],0,f.pos[2]],f.yaw));}}
 function jetMesh(enemy=false,heavy=false){let b=new Builder(),c=enemy?[.62,.64,.61]:heavy?[.33,.38,.36]:[.42,.5,.55],m=[.3,.7,0,5],dark=[.045,.065,.08],trim=enemy?[.78,.09,.045]:heavy?[.59,.37,.12]:[.13,.32,.43];
@@ -837,6 +1280,15 @@ body([[-12,.035,.035,0],[-10,.5,.5,0],[-7,1.05,.85,0],[-3,1.5,1.05,0],[1,1.65,1.
 body([[-8,.02,.02,.5],[-6,.6,.65,.7],[-3,.85,1.05,1],[-.8,.6,.5,1.1],[.3,.02,.02,1]], [.065,.23,.32],[.06,.92,.12,0]);
 function fin(points,color,mat=m,thick=.1){let down=points.map(p=>[p[0],p[1]-thick,p[2]]);b.quad(...points,color,mat);b.quad(...down.slice().reverse(),color,mat);for(let i=0;i<4;i++)b.quad(points[i],down[i],down[(i+1)%4],points[(i+1)%4],color,mat);}
 for(let side of [-1,1]){fin([[side*.9,0,-5],[side*8.5,-.1,2.7],[side*8.8,-.1,4.5],[side*1.1,0,4.7]],c);fin([[side*8,-.08,2.4],[side*8.5,-.1,2.7],[side*8.8,-.1,4.5],[side*7.8,-.08,4.5]],trim);fin([[side*.8,.3,5],[side*4.1,.25,7.9],[side*3.8,.25,9],[side*.7,.3,8]],c);fin([[side*.8,.6,3.5],[side*2.4,4.7,6.7],[side*2.3,4.6,8.6],[side*.9,.5,8]],trim);b.box(side*1.3,-.8,-1,1.2,.7,3.7,dark,[.8,.2,0,0]);b.box(side*4,-.8,2,.25,.9,2,c,m);body([[-3,.02,.02,0],[-2,.16,.16,0],[2.5,.16,.16,0],[3,.1,.1,0]],[.68,.7,.66],m,[side*4,-1.3,2],8);b.box(side*8.5,-.05,3.4,.25,.12,.65,side>0?[.1,1,.5]:[1,.08,.04],[.2,.1,4,0]);}
+// Separate control surfaces, canopy hoops, pitot probe and metallic exhaust petals.
+for(let side of [-1,1]){
+ b.rod([side*1.5,.12,3.7],[side*7.7,.02,3.7],.035,dark,m);
+ b.rod([side*1.1,.18,-4.8],[side*7.8,.02,2.3],.035,[.62,.65,.63],m);
+ b.box(side*1.9,-.65,-2.9,.15,.8,1.3,c,m);
+ for(let j=0;j<3;j++)b.box(side*1.55,.35,j*.35+1.5,.12,.08,.22,dark,m);
+}
+b.rod([0,0,-12],[0,0,-13.5],.025,[.45,.48,.5],m);
+for(let j=0;j<16;j++){let a=j*TAU/16;b.rod([Math.cos(a)*.98,Math.sin(a)*.84,8],[Math.cos(a)*.83,Math.sin(a)*.72,9],.055,[.29,.27,.25],[.32,.85,0,0]);}
 // Recessed engine nozzle and luminous afterburner sit inside concentric rings.
 body([[7.8,1.05,.9,0],[8.6,.95,.82,0],[9,.85,.74,0]],[.065,.08,.09],[.48,.9,0,5]);body([[8.65,.72,.62,0],[9.15,.68,.59,0],[10.3,.12,.1,0]],enemy?[1,.3,.055]:[.22,.55,1],[.1,.1,4,0]);
 for(let side of [-1,1]){b.rod([side*.7,.8,-4.9],[side*.7,1,-1],.025,[.65,.7,.73],[.24,.9,0,5]);b.box(side*5,.03,2.9,.8,.05,1.8,trim,[.5,.2,0,5]);}return b.mesh();}
@@ -898,7 +1350,7 @@ sceneTex=texture(W,H);normalTex=texture(W,H);resolveF=gl.createFramebuffer();gl.
 bW=Math.max(1,W>>2);bH=Math.max(1,H>>2);bloomF=[];bloomTex=[];for(let i=0;i<2;i++){bloomTex[i]=texture(bW,bH);bloomF[i]=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,bloomF[i]);attach(bloomTex[i]);check()}
 refTex=texture(Math.max(1,W>>1),Math.max(1,H>>1));refF=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,refF);attach(refTex);refDepth=gl.createRenderbuffer();gl.bindRenderbuffer(gl.RENDERBUFFER,refDepth);gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT24,Math.max(1,W>>1),Math.max(1,H>>1));gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,refDepth);check();gl.bindFramebuffer(gl.FRAMEBUFFER,null);$('qualityLabel').textContent=`WEBGL2 / ${samples}× MSAA / ${quality==='high'?'HIGH':'LITE'}`;}
 resize();window.addEventListener('resize',resize);gl.disable(gl.CULL_FACE);gl.enable(gl.DEPTH_TEST);
-const studyNames=['海旁全景','IFC 立面','通透冠頂','商場基座','海濱街道','小輪航道','中銀大廈','滙豐總行','怡和大廈','力寶中心','長江集團中心','美國銀行中心','中環中心','香港站入口','中環站入口','金鐘站入口','中環街道','海旁巴士站近景','港島內街','九龍內街','灣仔會展全景','金紫荊廣場','會展側面','會展上空','灣仔碼頭','中環廣場','香港君悅酒店','萬麗海景酒店','會展廣場辦公大樓','灣仔街區全景','兩岸商舖街景','海旁車流近景','灣仔電車街景','尖沙咀方向海港全景'];let studyView=0;let hudDetail='minimal',hudBrightness=.85,canopyEnabled=true;try{if(localStorage.getItem('harbour-hud-detail')==='full')hudDetail='full';}catch{}let showLandmarks=false;let crash=null,crashReason="",debris=[],impactFlash=0,shake=0,crashEmission=0;let autoActive=false,autoSafetyHold=false,autoUses=0,autoLimit=0,autoScan=0,autoHeading=0,autoPitch=0;let tracked=null,threatSource=null,threatTime=0,combatStats={shots:0,hits:0,missiles:0,damage:0};let enemySerial=0,enemyWarningCD=0,enemyShots=0,enemyHits=0,aircraftType='falcon',rocketSalvos=4,rocketCD=0,flareCharges=3,flareCD=0;let player={pos:[0,180,950],yaw:0,pitch:0,roll:0,hp:100,speed:115,missiles:6},enemies=[],bullets=[],missiles=[],particles=[],kills=0,elapsed=0,spawnTimer=0,shotCD=0,missileCD=0,damage=0,noticeTime=0,selected=null,aimDuration=0,frame=0;let camPos=[55,220,1100],camTarget=[-250,150,-700],view,proj,refVP;
+const studyNames=['海旁全景','IFC 立面','通透冠頂','商場基座','海濱街道','小輪航道','中銀大廈','滙豐總行','怡和大廈','力寶中心','長江集團中心','美國銀行中心','中環中心','香港站入口','中環站入口','金鐘站入口','中環街道','海旁巴士站近景','港島內街','九龍內街','灣仔會展全景','金紫荊廣場','會展側面','會展上空','灣仔碼頭','中環廣場','香港君悅酒店','萬麗海景酒店','會展廣場辦公大樓','灣仔街區全景','兩岸商舖街景','海旁車流近景','灣仔電車街景','尖沙咀方向海港全景','維港高空對照','上環西港城','西環海旁','香港大學本部','上環海旁 · 信德中心','永安中心近景','中遠大廈及新紀元廣場','上環電車街 · 低空','上環向西 · 樓群輪廓','西面內街 · 路面檢視','中環交通街景'];let studyView=0;let hudDetail='minimal',hudBrightness=.85,canopyEnabled=true;try{if(localStorage.getItem('harbour-hud-detail')==='full')hudDetail='full';}catch{}let showLandmarks=false;let crash=null,crashReason="",debris=[],impactFlash=0,shake=0,crashEmission=0;let autoActive=false,autoSafetyHold=false,autoUses=0,autoLimit=0,autoScan=0,autoHeading=0,autoPitch=0;let tracked=null,threatSource=null,threatTime=0,combatStats={shots:0,hits:0,missiles:0,damage:0};let enemySerial=0,enemyWarningCD=0,enemyShots=0,enemyHits=0,aircraftType='falcon',rocketSalvos=4,rocketCD=0,flareCharges=3,flareCD=0;let player={pos:[0,180,950],yaw:0,pitch:0,roll:0,hp:100,speed:115,missiles:6},enemies=[],bullets=[],missiles=[],particles=[],kills=0,elapsed=0,spawnTimer=0,shotCD=0,missileCD=0,damage=0,noticeTime=0,selected=null,aimDuration=0,frame=0;let camPos=[55,220,1100],camTarget=[-250,150,-700],view,proj,refVP;
 const keys={},input={x:0,y:0,fire:false,boost:false};let audioEngine=null,engineGain=null;
 function sound(type){if(!audioOn||!actx)return;let o=actx.createOscillator(),g=actx.createGain();o.connect(g);g.connect(actx.destination);let t=actx.currentTime;o.type=type==='hit'?'sawtooth':'triangle';o.frequency.setValueAtTime(type==='fire'?160:type==='missile'?500:90,t);o.frequency.exponentialRampToValueAtTime(type==='hit'?18:40,t+.18);g.gain.setValueAtTime(type==='fire'?.025:.07,t);g.gain.exponentialRampToValueAtTime(.001,t+.2);o.start(t);o.stop(t+.22)}
 function audio(){if(!audioOn&&!actx)return;if(!(window.AudioContext||window.webkitAudioContext))return;if(!actx){actx=new(window.AudioContext||window.webkitAudioContext)();audioEngine=actx.createOscillator();engineGain=actx.createGain();audioEngine.type='sawtooth';audioEngine.frequency.value=42;let filter=actx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=180;audioEngine.connect(filter);filter.connect(engineGain);engineGain.connect(actx.destination);audioEngine.start()}actx.resume();engineGain.gain.value=audioOn&&mode==='play'&&!paused?.025:0;}
@@ -1014,8 +1466,13 @@ function autoSteer(dt){
  return{x:clamp(-delta*1.5,-1,1),y:clamp(autoPitch/.48,-.85,.85)};
 }
 function setPause(p){if(mode!=='play'&&mode!=='crash')return;paused=p;$('paused').hidden=!p;input.fire=false;keys.Space=false;audio()}
-$('study').onclick=()=>{mode='study';paused=false;studyView=0;$('studyCaption').textContent=studyNames[0]+' · 1/'+studyNames.length;$('menu').hidden=true;$('location').hidden=true;$('hud').hidden=true;$('studyControls').hidden=false;$('status').textContent='CENTRAL / MATERIAL STUDY';};$('wanStart').onclick=()=>{$('study').onclick();studyView=20;$('studyCaption').textContent=studyNames[20]+' · 21/'+studyNames.length;};function selectStudy(i){studyView=i;$('studyCaption').textContent=studyNames[i]+' · '+(i+1)+'/'+studyNames.length;}for(let [id,i] of [['spotCEC',20],['spotBauhinia',21],['spotPier',24],['spotPlaza',25],['spotHyatt',26],['spotRenaissance',27],['spotOffice',28],['spotDistrict',29],['spotShops',30],['spotTraffic',31],['spotTram',32],['spotHarbourCompare',33]])$(id).onclick=()=>selectStudy(i);$('studyAngle').onclick=()=>{studyView=(studyView+1)%studyNames.length;$('studyCaption').textContent=studyNames[studyView]+' · '+(studyView+1)+'/'+studyNames.length;};$('shadowCompare').onclick=()=>{shadowsEnabled=!shadowsEnabled;$('shadowCompare').textContent=shadowsEnabled?'建築投影 ON':'建築投影 OFF';};$('studyBack').onclick=()=>{shadowsEnabled=true;$('shadowCompare').textContent='建築投影 ON';mode='menu';$('studyControls').hidden=true;$('menu').hidden=false;$('location').hidden=false;$('status').textContent='SYSTEM READY';};$('cityStart').onclick=()=>{$('study').onclick();selectStudy(31);};$('start').onclick=start;$('restart').onclick=start;$('home').onclick=()=>{mode='menu';crash=null;debris=[];particles=[];document.body.classList.remove('crashing');$('crashAlert').hidden=true;$('end').hidden=true;$('menu').hidden=false;$('location').hidden=false;$('hud').hidden=true;document.body.classList.remove('playing');$('status').textContent='SYSTEM READY';audio()};$('pause').onclick=()=>setPause(!paused);$('resume').onclick=()=>setPause(false);$('settings').onclick=()=>{$('panel').hidden=false;if(mode==='play'||mode==='crash'){paused=true;audio()}};$('closeSettings').onclick=()=>{$('panel').hidden=true;if(mode==='play'||mode==='crash'){paused=false;audio()}};$('hudDetail').value=hudDetail;$('hudDetail').onchange=e=>{hudDetail=e.target.value;document.body.classList.toggle('hud-minimal',hudDetail==='minimal');try{localStorage.setItem('harbour-hud-detail',hudDetail);}catch{}};$('hudBrightness').oninput=e=>hudBrightness=Number(e.target.value);$('canopyToggle').onchange=e=>canopyEnabled=e.target.checked;$('viewButton').onclick=()=>{camMode=camMode==='chase'?'cockpit':'chase';$('camera').value=camMode;};$('landmarkToggle').onchange=e=>showLandmarks=e.target.checked;$('quality').onchange=e=>{quality=e.target.value;resize()};$('rain').onchange=e=>rain=e.target.checked;$('camera').onchange=e=>camMode=e.target.value;$('sound').onclick=()=>{audioOn=!audioOn;$('sound').textContent=audioOn?'音效 ON':'音效 OFF';audio()};
+function closeStudyPicker(){$('studyPicker').hidden=true;$('studyToggle').textContent='選擇景點';}
+$('studyToggle').onclick=()=>{$('studyPicker').hidden=!$('studyPicker').hidden;$('studyToggle').textContent=$('studyPicker').hidden?'選擇景點':'收起選單';};
+$('study').onclick=()=>{closeStudyPicker();mode='study';paused=false;studyView=0;$('studyCaption').textContent=studyNames[0]+' · 1/'+studyNames.length;$('menu').hidden=true;$('location').hidden=true;$('hud').hidden=true;$('studyControls').hidden=false;$('status').textContent='CENTRAL / MATERIAL STUDY';};$('wanStart').onclick=()=>{$('study').onclick();studyView=20;$('studyCaption').textContent=studyNames[20]+' · 21/'+studyNames.length;};function selectStudy(i){closeStudyPicker();studyView=i;$('studyCaption').textContent=studyNames[i]+' · '+(i+1)+'/'+studyNames.length;}for(let [id,i] of [['spotCEC',20],['spotBauhinia',21],['spotPier',24],['spotPlaza',25],['spotHyatt',26],['spotRenaissance',27],['spotOffice',28],['spotDistrict',29],['spotShops',30],['spotTraffic',31],['spotTram',32],['spotHarbourCompare',33],['spotAerialReference',34],['spotWesternMarket',35],['spotWesternHarbour',36],['spotHKU',37],['spotSheungWan',38],['spotWingOn',39],['spotCosco',40],['spotWesternStreet',41],['spotWestMassing',42],['spotWestRoad',43],['spotCentralTransit',44],['spotCentralStation',14],['spotHongKongStation',13]])$(id).onclick=()=>selectStudy(i);$('studyAngle').onclick=()=>{closeStudyPicker();studyView=(studyView+1)%studyNames.length;$('studyCaption').textContent=studyNames[studyView]+' · '+(studyView+1)+'/'+studyNames.length;};$('shadowCompare').onclick=()=>{shadowsEnabled=!shadowsEnabled;$('shadowCompare').textContent=shadowsEnabled?'建築投影 ON':'建築投影 OFF';};$('studyBack').onclick=()=>{shadowsEnabled=true;$('shadowCompare').textContent='建築投影 ON';mode='menu';$('studyControls').hidden=true;$('menu').hidden=false;$('location').hidden=false;$('status').textContent='SYSTEM READY';};$('cityStart').onclick=()=>{$('study').onclick();selectStudy(31);};$('start').onclick=start;$('restart').onclick=start;$('home').onclick=()=>{mode='menu';crash=null;debris=[];particles=[];document.body.classList.remove('crashing');$('crashAlert').hidden=true;$('end').hidden=true;$('menu').hidden=false;$('location').hidden=false;$('hud').hidden=true;document.body.classList.remove('playing');$('status').textContent='SYSTEM READY';audio()};$('pause').onclick=()=>setPause(!paused);$('resume').onclick=()=>setPause(false);$('settings').onclick=()=>{$('panel').hidden=false;if(mode==='play'||mode==='crash'){paused=true;audio()}};$('closeSettings').onclick=()=>{$('panel').hidden=true;if(mode==='play'||mode==='crash'){paused=false;audio()}};$('hudDetail').value=hudDetail;$('hudDetail').onchange=e=>{hudDetail=e.target.value;document.body.classList.toggle('hud-minimal',hudDetail==='minimal');try{localStorage.setItem('harbour-hud-detail',hudDetail);}catch{}};$('hudBrightness').oninput=e=>hudBrightness=Number(e.target.value);$('canopyToggle').onchange=e=>canopyEnabled=e.target.checked;$('viewButton').onclick=()=>{camMode=camMode==='chase'?'cockpit':'chase';$('camera').value=camMode;};$('landmarkToggle').onchange=e=>showLandmarks=e.target.checked;$('quality').onchange=e=>{quality=e.target.value;resize()};$('rain').onchange=e=>rain=e.target.checked;$('camera').onchange=e=>camMode=e.target.value;$('sound').onclick=()=>{audioOn=!audioOn;$('sound').textContent=audioOn?'音效 ON':'音效 OFF';audio()};
 window.addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();if(e.repeat)return;keys[e.code]=true;if(e.code==='KeyQ')launchMissile();if(e.code==='KeyE')launchRockets();if(e.code==='KeyF')deployFlare();if(e.code==='KeyT')toggleTracking();if(e.code==='KeyG')toggleAuto();if(e.code==='KeyP'||e.code==='Escape')setPause(!paused);if(e.code==='KeyC'){camMode=camMode==='chase'?'cockpit':'chase';$('camera').value=camMode}});window.addEventListener('keyup',e=>keys[e.code]=false);window.addEventListener('blur',()=>{Object.keys(keys).forEach(k=>keys[k]=false);input.fire=false;input.boost=false;input.brake=false;input.x=input.y=0;setPause(true)});document.addEventListener('visibilitychange',()=>{if(document.hidden)setPause(true)});
+// Suppress the mobile long-press menu only over the flight HUD.
+$('hud').addEventListener('contextmenu',e=>e.preventDefault());
+$('hud').addEventListener('dragstart',e=>e.preventDefault());
 function hold(id,prop){let b=$(id);b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);input[prop]=true});['pointerup','pointercancel','lostpointercapture'].forEach(ev=>b.addEventListener(ev,()=>input[prop]=false))}hold('brake','brake');$('difficulty').onchange=e=>{if(combatLevels[e.target.value])difficulty=e.target.value;};hold('fire','fire');hold('boost','boost');$('rockets').addEventListener('pointerdown',e=>{e.preventDefault();launchRockets()});$('flare').addEventListener('pointerdown',e=>{e.preventDefault();deployFlare()});$('missile').addEventListener('pointerdown',e=>{e.preventDefault();launchMissile()});let stick=$('stick'),stickID=null;function moveStick(e){if(e.pointerId!==stickID)return;let r=stick.getBoundingClientRect(),dx=(e.clientX-r.left-r.width/2)/(r.width*.38),dy=(e.clientY-r.top-r.height/2)/(r.height*.38),l=Math.max(1,Math.hypot(dx,dy));input.x=dx/l;input.y=-dy/l;$('knob').style.transform=`translate(${input.x*r.width*.32}px,${-input.y*r.height*.32}px)`}stick.addEventListener('pointerdown',e=>{e.preventDefault();stickID=e.pointerId;stick.setPointerCapture(e.pointerId);moveStick(e)});stick.addEventListener('pointermove',moveStick);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>stick.addEventListener(ev,()=>{stickID=null;input.x=input.y=0;$('knob').style.transform=''}));
 // Solve the ballistic intercept using target velocity, not a unit heading vector.
 function interceptTime(origin,target,velocity,projectileSpeed){
@@ -1095,14 +1552,14 @@ $('targetLayer').innerHTML=html;updateLandmarks();$('enemyCount').textContent=en
  if(selected&&aimDuration>.45&&(()=>{let q=project(selected.pos);return q[2]>0&&q[0]>.07&&q[0]<.93&&q[1]>.18&&q[1]<.78})())$('pursuit').textContent='已鎖定 BANDIT '+String(selected.id).padStart(2,'0')+' · Q / ◇ 發射導彈';}
 let c=radar;c.clearRect(0,0,180,180);c.fillStyle='#08212dcc';c.beginPath();c.arc(90,90,84,0,TAU);c.fill();c.strokeStyle='#9adcc25a';c.lineWidth=1;for(let r of [28,56,84]){c.beginPath();c.arc(90,90,r,0,TAU);c.stroke()}c.beginPath();c.moveTo(6,90);c.lineTo(174,90);c.moveTo(90,6);c.lineTo(90,174);c.stroke();c.fillStyle='#b5f6e1';c.beginPath();c.moveTo(90,83);c.lineTo(86,95);c.lineTo(94,95);c.fill();let fw=forward(player.yaw,0),right=[Math.cos(player.yaw),0,-Math.sin(player.yaw)];for(let e of enemies){let d=sub(e.pos,player.pos),x=dot(d,right)/1100*75,y=-dot(d,fw)/1100*75,l=Math.max(1,Math.hypot(x,y)/75);x/=l;y/=l;c.fillStyle=(e===threatSource&&threatTime>0)?'#ff493d':(e===tracked||(!tracked&&(e===selected||e===nearest)))?'#ffd879':'#ff735b';c.beginPath();c.arc(90+x,90+y,(e===tracked||(!tracked&&(e===selected||e===nearest)))?5:3.5,0,TAU);c.fill()}c.font='9px monospace';c.fillStyle='#a9d5cf';c.fillText('1.1 KM / 外圈=更遠',32,22);}
 function updateLandmarks(){let html='';if(showLandmarks&&!crash)for(let l of landmarks){let q=project(l.pos),dist=len(sub(l.pos,camPos));if(q[2]>0&&dist<3700&&q[0]>.05&&q[0]<.95&&q[1]>.15&&q[1]<.65)html+=`<span class="landmark" style="left:${q[0]*100}%;top:${q[1]*100}%">${l.name}</span>`;}$('landmarks').innerHTML=html;}
-function render(dt){buildShadowMaps();document.body.classList.toggle('cockpit',camMode==='cockpit'&&mode==='play'&&canopyEnabled);if(mode==='menu'){let t=time*.04;camPos=[900+Math.sin(t)*130,340+Math.sin(t*.7)*20,1420];camTarget=[-100,135,-990]}else if(mode==='study'){let views=[[[0,235,800],[-230,150,-1000]],[[-505,205,-590],[-690,230,-920]],[[-580,399,-805],[-690,392,-920]],[[-490,62,-710],[-770,35,-935]],[[-630,28,-620],[-900,13,-680]],[[-710,32,-290],[-470,8,80]],[[325,195,-845],[160,190,-1180]],[[105,100,-860],[-20,100,-1100]],[[-175,120,-580],[-310,110,-850]],[[480,140,-1040],[365,115,-1330]],[[190,180,-1030],[80,150,-1340]],[[620,130,-870],[510,100,-1130]],[[-960,220,-1020],[-1100,190,-1300]],[[-590,23,-700],[-620,11,-765]],[[-300,23,-710],[-330,11,-775]],[[450,24,-1170],[420,11,-1235]],[[680,35,-720],[650,20,-910]],[[-905,18,-585],[-850,11,-620]],[[-1850,30,-800],[-1780,10,-825]],[[-1250,19,1080],[-1160,10,1080]],[[1750,220,50],[1400,65,-690]],[[1615,38,-380],[1555,16,-490]],[[1680,90,-650],[1370,35,-650]],[[1370,430,-370],[1370,20,-650]],[[1950,75,-280],[1810,15,-510]],[[1600,175,-690],[1440,205,-1020]],[[1075,115,-620],[1195,78,-880]],[[1370,115,-590],[1310,88,-891]],[[1630,130,-650],[1500,105,-895]],[[1750,220,50],[1400,65,-690]],[[streetSamples[0][0]+30,27,streetSamples[0][1]+streetSamples[0][3]/2+60],[streetSamples[0][0],20,streetSamples[0][1]]],[[-1100,19,shoreline(-1100)-27],[-1000,10,shoreline(-1000)-65]],[[1260,22,-952],[1215,11,-987.8]],[[350,32,1700],[350,150,-900]]];camPos=views[studyView][0];camTarget=views[studyView][1];}else if(!paused&&mode!=='crash'&&!(mode==='end'&&crash)){let fw=forward(player.yaw,player.pitch),right=[Math.cos(player.yaw),0,-Math.sin(player.yaw)];let desired=camMode==='cockpit'?add(add(player.pos,mul(fw,4)),[0,1.7,0]):add(add(player.pos,mul(fw,-56)),[0,17,0]);camPos=camPos.map((v,i)=>mix(v,desired[i],1-Math.exp(-dt*6)));camTarget=add(add(player.pos,mul(fw,180)),camMode==='cockpit'?[0,1.5,0]:[0,12,0]);}
+function render(dt){buildShadowMaps();document.body.classList.toggle('cockpit',camMode==='cockpit'&&mode==='play'&&canopyEnabled);if(mode==='menu'){let t=time*.04;camPos=[900+Math.sin(t)*130,340+Math.sin(t*.7)*20,1420];camTarget=[-100,135,-990]}else if(mode==='study'){let views=[[[0,235,800],[-230,150,-1000]],[[-505,205,-590],[-690,230,-920]],[[-580,399,-805],[-690,392,-920]],[[-490,62,-710],[-770,35,-935]],[[-630,28,-620],[-900,13,-680]],[[-710,32,-290],[-470,8,80]],[[325,195,-845],[160,190,-1180]],[[105,100,-860],[-20,100,-1100]],[[-175,120,-580],[-310,110,-850]],[[480,140,-1040],[365,115,-1330]],[[190,180,-1030],[80,150,-1340]],[[620,130,-870],[510,100,-1130]],[[-960,220,-1020],[-1100,190,-1300]],[[-590,23,-700],[-620,11,-765]],[[-300,23,-710],[-330,11,-775]],[[450,24,-1170],[420,11,-1235]],[[680,35,-720],[650,20,-910]],[[-905,18,-585],[-850,11,-620]],[[-1850,30,-800],[-1780,10,-825]],[[-1250,19,1080],[-1160,10,1080]],[[1750,220,50],[1400,65,-690]],[[1615,38,-380],[1555,16,-490]],[[1680,90,-650],[1370,35,-650]],[[1370,430,-370],[1370,20,-650]],[[1950,75,-280],[1810,15,-510]],[[1600,175,-690],[1440,205,-1020]],[[1075,115,-620],[1195,78,-880]],[[1370,115,-590],[1310,88,-891]],[[1630,130,-650],[1500,105,-895]],[[1750,220,50],[1400,65,-690]],[[streetSamples[0][0]+30,27,streetSamples[0][1]+streetSamples[0][3]/2+60],[streetSamples[0][0],20,streetSamples[0][1]]],[[-1100,19,shoreline(-1100)-27],[-1000,10,shoreline(-1000)-65]],[[1260,22,-952],[1215,11,-987.8]],[[350,32,1700],[350,150,-900]],[[300,1250,2550],[100,180,-1100]],[[-1580,80,-740],[-1650,22,-900]],[[-3050,160,0],[-3000,40,-800]],[[-3250,55,-1305],[-3250,25,-1435]],[[-1120,210,-160],[-1720,65,-920]],[[-1070,90,-660],[-1200,60,-840]],[[-1300,145,-890],[-1320,95,-1110]],[[-1775,23,-1008],[-2150,17,-1008]],[[-1700,165,-350],[-2950,85,-950]],[[-2500,65,shoreline(-2500)-221],[-3250,15,shoreline(-3250)-221]],[[-160,32,-700],[-420,12,-742]]];camPos=views[studyView][0];camTarget=views[studyView][1];}else if(!paused&&mode!=='crash'&&!(mode==='end'&&crash)){let fw=forward(player.yaw,player.pitch),right=[Math.cos(player.yaw),0,-Math.sin(player.yaw)];let desired=camMode==='cockpit'?add(add(player.pos,mul(fw,4)),[0,1.7,0]):add(add(player.pos,mul(fw,-56)),[0,17,0]);camPos=camPos.map((v,i)=>mix(v,desired[i],1-Math.exp(-dt*6)));camTarget=add(add(player.pos,mul(fw,180)),camMode==='cockpit'?[0,1.5,0]:[0,12,0]);}
 if(crash&&(mode==='crash'||mode==='end')&&!paused){let desired=add(player.pos,[Math.cos(crash.age*.3)*62,32+Math.min(crash.age*3,20),Math.sin(crash.age*.3)*62]);camPos=camPos.map((v,i)=>mix(v,desired[i],1-Math.exp(-dt*2.8)));camTarget=player.pos.slice();}let baseCamera=camPos.slice(),baseTarget=camTarget.slice();if(shake>0&&!paused&&mode!=='study'){let j=[Math.sin(time*91)*shake*1.8,Math.sin(time*127)*shake*1.2,Math.cos(time*73)*shake*.8];camPos=add(camPos,j);camTarget=add(camTarget,mul(j,-.4));}proj=perspective(aspect,1,FAR);view=look(camPos,camTarget);let re=[camPos[0],-camPos[1],camPos[2]],rt=[camTarget[0],-camTarget[1],camTarget[2]];refVP=mm(proj,look(re,rt));gl.bindFramebuffer(gl.FRAMEBUFFER,refF);gl.viewport(0,0,W>>1,H>>1);gl.clearColor(.05,.08,.1,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);drawScene(re,rt,true);
 gl.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.viewport(0,0,W,H);gl.drawBuffers([gl.COLOR_ATTACHMENT0,gl.COLOR_ATTACHMENT1]);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);drawScene(camPos,camTarget,false);
 gl.bindFramebuffer(gl.READ_FRAMEBUFFER,fb);gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,resolveF);for(let i=0;i<2;i++){gl.readBuffer(gl.COLOR_ATTACHMENT0+i);gl.drawBuffers(i===0?[gl.COLOR_ATTACHMENT0]:[gl.NONE,gl.COLOR_ATTACHMENT1]);gl.blitFramebuffer(0,0,W,H,0,0,W,H,gl.COLOR_BUFFER_BIT,gl.NEAREST)}gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.disable(gl.DEPTH_TEST);gl.bindVertexArray(null);
 use(bloomP);i1(bloomP,'tex',0);for(let i=0;i<2;i++){gl.bindFramebuffer(gl.FRAMEBUFFER,bloomF[i]);gl.viewport(0,0,bW,bH);bindTex(0,i===0?sceneTex:bloomTex[0]);v2(bloomP,'stepUV',i===0?[1/bW,0]:[0,1/bH]);i1(bloomP,'extract',i===0?1:0);gl.drawArrays(gl.TRIANGLES,0,3)}
 gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);use(postP);bindTex(0,sceneTex);bindTex(1,normalTex);bindTex(2,bloomTex[1]);i1(postP,'tex',0);i1(postP,'normalTex',1);i1(postP,'bloomTex',2);v2(postP,'resolution',[W,H]);f1(postP,'time',mode==='study'?0:time);f1(postP,'aspect',aspect);f1(postP,'damage',mode==='study'?0:damage);f1(postP,'impactFlash',mode==='study'?0:impactFlash);f1(postP,'concussion',mode==='study'?0:clamp(shake*.65,0,1));i1(postP,'rain',rain&&mode!=='study'?1:0);i1(postP,'ao',quality==='high'?1:0);gl.drawArrays(gl.TRIANGLES,0,3);gl.enable(gl.DEPTH_TEST);if(mode==='play'&&frame%3===0)hud();if(mode==='menu'&&frame%6===0)updateLandmarks();if(window.FlightHUD){let ff=forward(player.yaw,player.pitch),fp=project(add(player.pos,mul(ff,5000)));window.FlightHUD.draw({active:mode==='play'||mode==='crash',lost:mode==='crash',width:innerWidth,height:innerHeight,dt,paused,time,pitch:player.pitch,roll:player.roll,yaw:player.yaw,speed:player.speed,altitude:player.pos[1],health:player.hp,missiles:player.missiles,locked:!!selected&&aimDuration>.45,range:selected?len(sub(selected.pos,player.pos)):null,fpm:fp,detail:hudDetail,brightness:hudBrightness,touch:!!window.matchMedia?.('(pointer:coarse)').matches});}camPos=baseCamera;camTarget=baseTarget;}
 // Expose read-only diagnostics for graphics verification, without gameplay cheats.
-window.flightDiagnostics=()=>({webgl:2,mode,width:W,height:H,samples,enemies:enemies.length,kills,health:player.hp,elapsed,vertices:worldMesh.count,glError:gl.getError(),buildingShadows:shadowsEnabled,shadowMapSizes:shadowMaps.map(m=>m.size),shadowCasterVertices:worldMesh.count,effects:['two-range PCF building shadows','GGX PBR','planar wet reflections','screen-space ambient occlusion','bloom','ACES','raindrop refraction'],proceduralModels:true,photorealMaterialAtlas:materialReady,enemyScale:1.7,enemyModels:['F-16-inspired','F-15-inspired'],initialEnemyRange:360,targetIndicators:true,avionicsHUD:!!window.FlightHUD,camera:camMode,photoBackdrop:false,photographicFacadeMaterials:facadeReady,proceduralBuildingFacades:true,urbanFamilies:urbanStats,cityDetail,roadVehiclePositions:Array.from({length:18},(_,i)=>roadVehicle(i,mode==='study'?0:time).pos),animatedFerries:4,ferryPositions:[0,1,2,3].map(i=>ferryState(i).pos),wakeTrails:true,innerStreetStats:innerStats,aircraftType,rocketSalvos,rocketCD,flareCharges,flareCD,enemyTypes:enemies.map(e=>e.enemyType),cityPatrols:enemies.filter(e=>!!e.cityAnchor).length,enemyShots,enemyHits,difficulty,score,combo,maxCombo,gunHeat,overheated,supplyCooldown,supplyCount,autoActive,autoSafetyHold,autoUses,autoLimit,trackedId:tracked&&!tracked.dead?tracked.id:null,combatStats:{...combatStats},threatTime,nearestContact:enemies.length?(()=>{let e=enemies.reduce((a,b)=>len(sub(a.pos,player.pos))<len(sub(b.pos,player.pos))?a:b);return{id:e.id,...contactBearing(e.pos)}})():null,sceneStyle:'detailed-streets-traffic-v38',landmarks:landmarks.map(l=>l.name),harbourAxis:'east-west',crashSequence:mode==='crash',collisionShapes:collisionBoxes.length,crashAge:crash?.age||0});
+window.flightDiagnostics=()=>({webgl:2,mode,width:W,height:H,samples,enemies:enemies.length,kills,health:player.hp,elapsed,vertices:worldMesh.count,glError:gl.getError(),buildingShadows:shadowsEnabled,shadowMapSizes:shadowMaps.map(m=>m.size),shadowCasterVertices:worldMesh.count,effects:['two-range PCF building shadows','GGX PBR','planar wet reflections','screen-space ambient occlusion','bloom','ACES','raindrop refraction'],proceduralModels:true,photorealMaterialAtlas:materialReady,enemyScale:1.7,enemyModels:['F-16-inspired','F-15-inspired'],initialEnemyRange:360,targetIndicators:true,avionicsHUD:!!window.FlightHUD,camera:camMode,photoBackdrop:false,photographicFacadeMaterials:facadeReady,proceduralBuildingFacades:true,urbanFamilies:urbanStats,cityDetail,roadVehiclePositions:Array.from({length:18},(_,i)=>roadVehicle(i,mode==='study'?0:time).pos),animatedFerries:4,ferryPositions:[0,1,2,3].map(i=>ferryState(i).pos),wakeTrails:true,innerStreetStats:innerStats,aircraftType,rocketSalvos,rocketCD,flareCharges,flareCD,enemyTypes:enemies.map(e=>e.enemyType),cityPatrols:enemies.filter(e=>!!e.cityAnchor).length,enemyShots,enemyHits,difficulty,score,combo,maxCombo,gunHeat,overheated,supplyCooldown,supplyCount,autoActive,autoSafetyHold,autoUses,autoLimit,trackedId:tracked&&!tracked.dead?tracked.id:null,combatStats:{...combatStats},threatTime,nearestContact:enemies.length?(()=>{let e=enemies.reduce((a,b)=>len(sub(a.pos,player.pos))<len(sub(b.pos,player.pos))?a:b);return{id:e.id,...contactBearing(e.pos)}})():null,centralInfillStats,groundMaterialStats,centralTransit,westGroundStats,westMassingStats,westernStreetStats,westernVehiclePositions:Array.from({length:4},(_,i)=>westernVehicle(i,mode==='study'?0:time).pos),sceneStyle:'western-street-detail-v42',landmarks:landmarks.map(l=>l.name),harbourAxis:'east-west',crashSequence:mode==='crash',collisionShapes:collisionBoxes.length,crashAge:crash?.age||0});
 function loop(t){let dt=Math.min((t-last)/1000,.04)||.016;last=t;if(!paused){time+=dt;if(mode==='play')update(dt);else if(mode==='crash')updateCrash(dt);else if(mode==='end'&&crash)stepEffects(dt);}render(dt);frame++;requestAnimationFrame(loop)}requestAnimationFrame(loop);
 }}
 )();

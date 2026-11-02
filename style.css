@@ -64,3 +64,20 @@
 .edge-target small{max-width:min(145px,40vw);white-space:normal;line-height:1.25;overflow-wrap:anywhere}
 @media(max-width:600px){.hud-minimal #pursuit{max-width:70%;font-size:9px}.hud-minimal.needs-supply #supplyGuide{bottom:30%;max-width:48%;font-size:9px}.hud-minimal #heatMeter.warm{bottom:30%}}
 .hud-minimal .target-v2.threat-contact:not(.selected):not(.focus-contact) b,.hud-minimal .target-v2.threat-contact:not(.selected):not(.focus-contact) small{display:block;color:#ffb39a}
+
+/* Keep iOS long presses on the flight HUD from selecting text or showing callouts. */
+#hud, #hud *, #controls, #controls *, #flightDisplay, #radar {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#controls, #controls button, #stick, #knob { touch-action: none; }
+
+/* Keep the scene visible on phone-sized study previews. */
+#studyControls{left:3%;right:3%;bottom:6%;width:auto;max-width:420px;max-height:56vh;padding:10px 12px;box-sizing:border-box;background:#07141ee8;border-radius:4px}
+#studyControls small{display:none}#studyControls strong{font-size:15px;margin:0 0 4px;line-height:1.35}
+#studyControls button{font-size:12px;min-height:40px;padding:7px 10px;margin:4px 4px 0 0}
+#studyPicker[hidden]{display:none}#studyPicker{max-height:30vh;overflow:auto;overscroll-behavior:contain;margin:8px 0}
+#studyPicker p{margin:4px 0 8px}#studyControls #shadowCompare{display:none}
+@media(max-height:500px){#studyControls{max-width:360px;bottom:5%}#studyPicker{max-height:24vh}}

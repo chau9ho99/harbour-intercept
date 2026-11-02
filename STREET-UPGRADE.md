@@ -1,0 +1,1 @@
+Expanded inland Central procedural detail to rows 2–6, x -1800 to 900. Added pavement aprons, kerbs, road paint, lamps, bins, benches, rear service doors and pipes; shop display and entrance geometry. Not surveyed streets; road aprons are local sections, not a reconstructed connected road network. No claim of photorealism. GitHub Pages not synchronized.
