@@ -1301,6 +1301,51 @@ for(let [x,z,idx] of [[-1510,-963,13],[-1510,-1040,14],[-1120,-962,16]]){
 }
 function marketVehicle(i,t){let dir=i%2?1:-1,L=730,x=-1705+((i*113+t*(i<2?8:10)*dir)%L+L)%L;return {pos:[x,9.05,-980+(i<2?(dir>0?-2.8:2.8):(dir>0?-7.5:7.5))],yaw:dir<0?PI:0,type:i<2?'tram':i===2?'bus':'taxi'};}
 
+// Sheung Wan waterfront: transport interchange fills the gap between towers and harbour.
+// Interpretive game-scale layout, not surveyed geometry.
+const waterfrontFix={segments:0,platforms:0,buses:0,bridges:0};
+const wfLeft=-1580,wfRight=-880;
+// Surface lanes occupy only clear sections: do not put tarmac through existing towers.
+for(let x=wfLeft;x<wfRight;x+=20){
+ let mid=x+10,near=shoreline(mid)-85,far=shoreline(mid)-155;
+ for(let z of [near,far]){
+  if(!openStreet(mid,z,20,16))continue;
+  streetSurface(mid,z,20,16,8.56,[.07,.08,.085],ROAD);
+  for(let dz of [-7,7])streetSurface(mid,z+dz,20,.16,8.58,[.72,.56,.15],PAINT);
+  streetSurface(mid,z,8,.16,8.59,[.67,.66,.57],PAINT);waterfrontFix.segments++;
+ }
+}
+// A covered interchange rather than one unbroken paved slab; platforms alternate with bus bays.
+for(let i=0;i<7;i++){
+ let x=-1370+i*54,z=shoreline(x)-121;
+ if(!openStreet(x,z,44,22))continue;
+ streetSurface(x,z,44,20,8.62,[.09,.105,.105],ROAD);
+ world.box(x,8.7,z+7,43,.35,3,[.39,.38,.33],CONCRETE);
+ for(let dx of [-19,0,19])world.rod([x+dx,9,z+7],[x+dx,13,z+7],.13,[.36,.39,.37],STEEL);
+ world.box(x,13,z+7,43,.3,5,[.22,.30,.29],STEEL);
+ for(let j=-2;j<=2;j++)world.box(x+j*7.5,13.35,z+7,6.8,.12,4.4,[.33,.38,.36],CONCRETE);
+ shopSign(world,x,12.3,z+9.6,16,1.4,11);
+ world.box(x-10,9,z+6,7,.4,1,[.31,.23,.14],CONCRETE);
+ for(let dx of [-10,10])world.box(x+dx,8.7,z-6,1,.12,3,[.76,.72,.59],PAINT);
+ vehicleBody(world,x,8.8,z-2,'bus');waterfrontFix.buses++;waterfrontFix.platforms++;
+}
+// Elevated pedestrian links and a flyover provide the layered silhouette of the corridor.
+for(let x of [-1320,-1080]){
+ let z0=-780,z1=shoreline(x)-82,mid=(z0+z1)/2,len=z1-z0;
+ if(len<15)continue;
+ world.box(x,20,mid,8,1.2,len,[.35,.37,.34],CONCRETE);
+ for(let side of [-1,1]){world.box(x+side*3.8,21,mid,.16,2.3,len,[.18,.28,.28],[.3,.35,0,0]);for(let z=z0+8;z<z1;z+=14)world.box(x+side*3.8,20,z,.3,3,.3,[.49,.5,.46],STEEL);}
+ world.box(x,23.5,mid,9,.3,len,[.34,.37,.34],STEEL);waterfrontFix.bridges++;
+}
+for(let x=-1420;x<-940;x+=20){
+ let z=shoreline(x+10)-173;
+ // Low flyover slabs stop at major buildings and avoid the terminal structure.
+ if(!openStreet(x+10,z,20,15))continue;
+ world.box(x+10,20,z,20,1.5,15,[.28,.3,.29],CONCRETE);
+ for(let dz of [-6.8,6.8])world.box(x+10,21.5,z+dz,20,.8,.35,[.44,.46,.43],CONCRETE);
+ if((x+1420)%80===0)world.box(x+10,8.5,z,2,11.5,3,[.31,.33,.31],CONCRETE);
+}
+
 // Upgrade every neutral, upward-facing ground slab, while retaining road paint,
 // plants, roofs and existing specialised materials. All map regions use this pass.
 function upgradeGroundMaterials(builder){
@@ -1647,7 +1692,7 @@ gl.bindFramebuffer(gl.READ_FRAMEBUFFER,fb);gl.bindFramebuffer(gl.DRAW_FRAMEBUFFE
 use(bloomP);i1(bloomP,'tex',0);for(let i=0;i<2;i++){gl.bindFramebuffer(gl.FRAMEBUFFER,bloomF[i]);gl.viewport(0,0,bW,bH);bindTex(0,i===0?sceneTex:bloomTex[0]);v2(bloomP,'stepUV',i===0?[1/bW,0]:[0,1/bH]);i1(bloomP,'extract',i===0?1:0);gl.drawArrays(gl.TRIANGLES,0,3)}
 gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);use(postP);bindTex(0,sceneTex);bindTex(1,normalTex);bindTex(2,bloomTex[1]);i1(postP,'tex',0);i1(postP,'normalTex',1);i1(postP,'bloomTex',2);v2(postP,'resolution',[W,H]);f1(postP,'time',mode==='study'?0:time);f1(postP,'aspect',aspect);f1(postP,'damage',mode==='study'?0:damage);f1(postP,'impactFlash',mode==='study'?0:impactFlash);f1(postP,'concussion',mode==='study'?0:clamp(shake*.65,0,1));i1(postP,'rain',rain&&mode!=='study'?1:0);i1(postP,'ao',quality==='high'?1:0);gl.drawArrays(gl.TRIANGLES,0,3);gl.enable(gl.DEPTH_TEST);if(mode==='play'&&frame%3===0)hud();if(mode==='menu'&&frame%6===0)updateLandmarks();if(window.FlightHUD){let ff=forward(player.yaw,player.pitch),fp=project(add(player.pos,mul(ff,5000)));window.FlightHUD.draw({active:mode==='play'||mode==='crash',lost:mode==='crash',width:innerWidth,height:innerHeight,dt,paused,time,pitch:player.pitch,roll:player.roll,yaw:player.yaw,speed:player.speed,altitude:player.pos[1],health:player.hp,missiles:player.missiles,locked:!!selected&&aimDuration>.45,range:selected?len(sub(selected.pos,player.pos)):null,fpm:fp,detail:hudDetail,brightness:hudBrightness,touch:!!window.matchMedia?.('(pointer:coarse)').matches});}camPos=baseCamera;camTarget=baseTarget;}
 // Expose read-only diagnostics for graphics verification, without gameplay cheats.
-window.flightDiagnostics=()=>({webgl:2,mode,width:W,height:H,samples,enemies:enemies.length,kills,health:player.hp,elapsed,vertices:worldMesh.count,glError:gl.getError(),buildingShadows:shadowsEnabled,shadowMapSizes:shadowMaps.map(m=>m.size),shadowCasterVertices:worldMesh.count,effects:['two-range PCF building shadows','GGX PBR','planar wet reflections','screen-space ambient occlusion','bloom','ACES','raindrop refraction'],proceduralModels:true,photorealMaterialAtlas:materialReady,enemyScale:1.7,enemyModels:['F-16-inspired','F-15-inspired'],initialEnemyRange:360,targetIndicators:true,avionicsHUD:!!window.FlightHUD,camera:camMode,photoBackdrop:false,photographicFacadeMaterials:facadeReady,proceduralBuildingFacades:true,urbanFamilies:urbanStats,cityDetail,roadVehiclePositions:Array.from({length:18},(_,i)=>roadVehicle(i,mode==='study'?0:time).pos),animatedFerries:4,ferryPositions:[0,1,2,3].map(i=>ferryState(i).pos),wakeTrails:true,innerStreetStats:innerStats,aircraftType,rocketSalvos,rocketCD,flareCharges,flareCD,enemyTypes:enemies.map(e=>e.enemyType),cityPatrols:enemies.filter(e=>!!e.cityAnchor).length,enemyShots,enemyHits,difficulty,score,combo,maxCombo,gunHeat,overheated,supplyCooldown,supplyCount,autoActive,autoSafetyHold,autoUses,autoLimit,trackedId:tracked&&!tracked.dead?tracked.id:null,combatStats:{...combatStats},threatTime,nearestContact:enemies.length?(()=>{let e=enemies.reduce((a,b)=>len(sub(a.pos,player.pos))<len(sub(b.pos,player.pos))?a:b);return{id:e.id,...contactBearing(e.pos)}})():null,marketStats,centralInfillStats,groundMaterialStats,centralTransit,westGroundStats,westMassingStats,westernStreetStats,westernVehiclePositions:Array.from({length:4},(_,i)=>westernVehicle(i,mode==='study'?0:time).pos),sceneStyle:'market-corridor-v45',landmarks:landmarks.map(l=>l.name),harbourAxis:'east-west',crashSequence:mode==='crash',collisionShapes:collisionBoxes.length,crashAge:crash?.age||0});
+window.flightDiagnostics=()=>({webgl:2,mode,width:W,height:H,samples,enemies:enemies.length,kills,health:player.hp,elapsed,vertices:worldMesh.count,glError:gl.getError(),buildingShadows:shadowsEnabled,shadowMapSizes:shadowMaps.map(m=>m.size),shadowCasterVertices:worldMesh.count,effects:['two-range PCF building shadows','GGX PBR','planar wet reflections','screen-space ambient occlusion','bloom','ACES','raindrop refraction'],proceduralModels:true,photorealMaterialAtlas:materialReady,enemyScale:1.7,enemyModels:['F-16-inspired','F-15-inspired'],initialEnemyRange:360,targetIndicators:true,avionicsHUD:!!window.FlightHUD,camera:camMode,photoBackdrop:false,photographicFacadeMaterials:facadeReady,proceduralBuildingFacades:true,urbanFamilies:urbanStats,cityDetail,roadVehiclePositions:Array.from({length:18},(_,i)=>roadVehicle(i,mode==='study'?0:time).pos),animatedFerries:4,ferryPositions:[0,1,2,3].map(i=>ferryState(i).pos),wakeTrails:true,innerStreetStats:innerStats,aircraftType,rocketSalvos,rocketCD,flareCharges,flareCD,enemyTypes:enemies.map(e=>e.enemyType),cityPatrols:enemies.filter(e=>!!e.cityAnchor).length,enemyShots,enemyHits,difficulty,score,combo,maxCombo,gunHeat,overheated,supplyCooldown,supplyCount,autoActive,autoSafetyHold,autoUses,autoLimit,trackedId:tracked&&!tracked.dead?tracked.id:null,combatStats:{...combatStats},threatTime,nearestContact:enemies.length?(()=>{let e=enemies.reduce((a,b)=>len(sub(a.pos,player.pos))<len(sub(b.pos,player.pos))?a:b);return{id:e.id,...contactBearing(e.pos)}})():null,waterfrontFix,marketStats,centralInfillStats,groundMaterialStats,centralTransit,westGroundStats,westMassingStats,westernStreetStats,westernVehiclePositions:Array.from({length:4},(_,i)=>westernVehicle(i,mode==='study'?0:time).pos),sceneStyle:'sheung-wan-waterfront-v46',landmarks:landmarks.map(l=>l.name),harbourAxis:'east-west',crashSequence:mode==='crash',collisionShapes:collisionBoxes.length,crashAge:crash?.age||0});
 function loop(t){let dt=Math.min((t-last)/1000,.04)||.016;last=t;if(!paused){time+=dt;if(mode==='play')update(dt);else if(mode==='crash')updateCrash(dt);else if(mode==='end'&&crash)stepEffects(dt);}render(dt);frame++;requestAnimationFrame(loop)}requestAnimationFrame(loop);
 }}
 )();
