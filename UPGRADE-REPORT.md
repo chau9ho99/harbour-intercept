@@ -1,5 +1,11 @@
 # Harbour / Intercept — 十項升級報告（程式版 v37）
 
+## 2026-11-03 — V53 Mission introduction
+- Starting or restarting a sortie enters a 7.2-second cinematic: the chosen jet climbs from low over the harbour, with an external following camera and mission title, objective and changing briefing captions.
+- The visible Skip button and Escape, Enter or Space immediately start the mission. Auto-completion transitions to the selected cockpit or chase camera. Combat, enemies, health and elapsed mission time are frozen during the introduction.
+- Tests: explicit intro state, climb and captions, frozen enemies/time, skip button, keyboard skip, automatic completion; city and combat regressions; 12 shaders compile and six programs link with Mesa software GLES.
+- Limits: starts in low-altitude flight rather than a runway or aircraft carrier launch; no new voiceover. Browser WebGL2 and real phone rendering/performance remain unverified.
+
 ## 2026-11-03 — V52 Nearby supply, missile smoke, varied opening
 - When the supply ring is ready and more than 850 m away, place it around 470 m ahead with an altitude offset, checking multiple alternatives for a 76 m clearance from building collision boxes. Preserve the 45-second cooldown and existing rewards; the ring can remain distant if no clear candidate is found. HUD now shows its actual altitude.
 - Replace tiny per-frame missile puffs with a brighter, longer-lived trail behind the missile, emitted at distance intervals with a lower-density Lite mode and a per-update cap.
