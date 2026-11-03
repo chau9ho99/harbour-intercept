@@ -1,5 +1,11 @@
 # Harbour / Intercept — 十項升級報告（程式版 v37）
 
+## 2026-11-03 — V52 Nearby supply, missile smoke, varied opening
+- When the supply ring is ready and more than 850 m away, place it around 470 m ahead with an altitude offset, checking multiple alternatives for a 76 m clearance from building collision boxes. Preserve the 45-second cooldown and existing rewards; the ring can remain distant if no clear candidate is found. HUD now shows its actual altitude.
+- Replace tiny per-frame missile puffs with a brighter, longer-lived trail behind the missile, emitted at distance intervals with a lower-density Lite mode and a per-update cap.
+- Each round reseeds combat randomness and varies the five initial enemies' distances, lateral offsets and city patrol positions. The first stays near the forward axis; spawn safety is retained. It is not a fully random mission layout.
+- Tests: city regression, missile/building hit ordering, 12 opening formations with collision clearance, distant supply relocation/clearance, continuous missile trail, combat and auto-pursuit regressions; 12 GLES shaders compiled and 6 programs linked in Mesa. The environment's browser cannot supply WebGL2, so mobile gameplay, actual visual quality, frame rate and all possible terrain/route cases were not verified.
+
 ## 2026-11-03 — V51 Aircraft detail
 - Smoothed player and F-16/F-15-inspired enemy fuselage profiles; added procedural panel seams, rivets, weathering and heat-darkened exhaust area plus Canvas-drawn markings.
 - Added a transparent canopy, frame, seat and helmeted pilot; separately animated tailplanes and ailerons react to aircraft pitch/roll, and afterburner size reacts to speed. Enemy control surfaces follow their own flight orientation.
