@@ -1,5 +1,13 @@
 # Harbour / Intercept — 十項升級報告（程式版 v37）
 
+## 2026-11-03 — V51 Aircraft detail
+- Smoothed player and F-16/F-15-inspired enemy fuselage profiles; added procedural panel seams, rivets, weathering and heat-darkened exhaust area plus Canvas-drawn markings.
+- Added a transparent canopy, frame, seat and helmeted pilot; separately animated tailplanes and ailerons react to aircraft pitch/roll, and afterburner size reacts to speed. Enemy control surfaces follow their own flight orientation.
+- Player aircraft shows six detachable stores representing remaining missile count, plus rocket pods based on remaining salvos. Enemy stores are decorative. Added damage-stage scorch patches; patches are preset locations, not precise projectile hit decals. Existing damage smoke remains.
+- Study menu now includes an interactive hangar, draggable rotation, plus/minus zoom and wheel zoom. Existing aircraft selection controls which player jet is shown.
+- Checks: JS syntax, city and combat regressions, hangar entry/zoom/mesh tests, actual 12-shader compile and 6-program link on Mesa GLES. Browser WebGL2 unavailable; no real scene screenshots or mobile GPU timing verified.
+- Limits: controlled flight surfaces use aircraft attitude, not measured aerodynamic actuator positions. Glass is blended, not physically refractive; flame responds to speed, not actual throttle. Damage marks are staged, and cockpit view does not show the exterior. Geometry remains procedural and inspired by aircraft; not a licensed or photoreal model.
+
 ## 2026-11-02 — V50 全海域、天空與雲霧
 
 - 海面由平面改成動態網格：三組不同方向、速度嘅波浪，高畫質 94,944 頂點，低畫質 25,944 頂點；起伏上限約 ±0.82 米。加近景細浪法線、藍綠海色、低角度 Fresnel 反光及透光色。
