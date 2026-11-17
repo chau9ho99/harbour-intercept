@@ -8,17 +8,19 @@ const stats=context.HarbourTST.build({world:context.builder,northshore:x=>930+80
 test('seven named landmarks, four clock faces and both curved roof shells are authored',()=>{assert.equal(landmarks.length,7);assert.equal(stats.clockFaces,4);assert.equal(stats.roofStrips,48);assert.ok(stats.railPosts>100);assert.ok(stats.palms>5)});
 test('geometry is finite and bounded; dome normals face outwards',()=>{
  const a=context.builder.a;assert.ok(a.length>10000&&a.length<2000000);assert.ok(a.every(Number.isFinite));
- let dome=0;for(let i=0;i<a.length;i+=15){const [x,y,z,nx,ny,nz]=a.slice(i,i+6);if(y>15&&y<41.5&&Math.hypot(x-922,z-1288)<28.01&&z>1260&&z<1316){const dot=(x-922)*nx+(y-11.8)*ny+(z-1288)*nz;if(Math.abs(Math.hypot(x-922,y-11.8,z-1288)-19.04)<.01){assert.ok(dot>0);dome++;}}}assert.ok(dome>300);
+ let dome=0;for(let i=0;i<a.length;i+=15){const [x,y,z,nx,ny,nz]=a.slice(i,i+6);if(y>15&&y<41.5&&Math.hypot(x-807,z-1122)<28.01&&z>1094&&z<1150){const dot=(x-807)*nx+(y-11.8)*ny+(z-1122)*nz;if(Math.abs(Math.hypot(x-807,y-11.8,z-1122)-19.04)<.01){assert.ok(dot>0);dome++;}}}assert.ok(dome>300);
 });
-test('cultural roof collision covers each strip and Clock Tower is solid',()=>{assert.equal(bounds.filter(b=>Math.abs(b.y-17.76)<.001).length,48);assert.ok(bounds.some(b=>b.x===452&&b.z===1080&&b.h===36.6));assert.ok(bounds.some(b=>b.x===922&&Math.abs(b.h-19.04)<.001))});
+test('cultural roof collision covers each strip and Clock Tower is solid',()=>{assert.equal(bounds.filter(b=>Math.abs(b.y-17.76)<.001).length,48);assert.ok(bounds.some(b=>b.x===432&&b.z===1005&&b.h===36.6));assert.ok(bounds.some(b=>b.x===807&&Math.abs(b.h-19.04)<.001))});
 test('authored waterfront reserve excludes generic buildings and roads',()=>{assert.ok(context.HarbourTST.reserved(652,1190));assert.ok(!context.HarbourTST.reserved(-600,-900));assert.ok(!context.HarbourTST.reserved(2000,1400))});
 test('study camera names, view indices and buttons stay aligned',()=>{
  const start=s.indexOf('let views=')+'let views='.length,end=s.indexOf(';if(studyView===50)',start);
  const views=vm.runInNewContext(s.slice(start,end),{streetSamples:[[0,0,0,0]],shoreline:()=>-630});
- assert.equal(views.length,57);assert.equal(views[50],null);assert.equal(views[51][0][2],540);
+ assert.equal(views.length,57);assert.equal(views[50],null);assert.equal(views[51][0][2],670);
  const html=fs.readFileSync('index.html','utf8');for(const id of ['spotK11','spotPeninsula','spotTST','spotTSTClock','spotTSTCulture','spotTSTMuseums']){assert.ok(html.includes(`id="${id}"`));assert.ok(s.includes(`['${id}',`))}
  assert.ok(html.indexOf('src="tst-waterfront.js')<html.indexOf('src="game.js'));
 });
 console.log('TST vertices:',context.builder.a.length/15,'collision bounds:',bounds.length+context.boxes.length);
 
-test('K11 remains east of museums and Peninsula court is open',()=>{assert.ok(landmarks.find(l=>l[0]==='K11 MUSEA')[1][0]>1000);assert.ok(!context.boxes.some(b=>Math.abs(b.x-620)<b.w/2&&Math.abs(b.z-1455)<b.d/2&&b.y+b.h>15));assert.equal(stats.benchLength,2);});
+test('K11 remains east of museums and Peninsula court is open',()=>{assert.ok(landmarks.find(l=>l[0]==='K11 MUSEA')[1][0]>1000);assert.ok(!context.boxes.some(b=>Math.abs(b.x-745)<b.w/2&&Math.abs(b.z-1273)<b.d/2&&b.y+b.h>15));assert.equal(stats.benchLength,2);});
+
+test('mapped landmark adjacency closes oversized waterfront gaps',()=>{const get=n=>landmarks.find(l=>l[0]===n)[1];assert.ok(get('半島酒店')[2]-get('香港太空館')[2]<220);assert.ok(get('香港太空館')[2]>get('香港藝術館')[2]);assert.ok(get('香港藝術館')[0]>get('香港文化中心')[0]);assert.ok(context.HarbourTST.shore(540)<context.HarbourTST.shore(300));});
