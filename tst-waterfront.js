@@ -2,22 +2,32 @@
 // Reference-led first waterfront pass. Coordinates fit the game's interpreted harbour.
 globalThis.HarbourTST={
  reserved(x,z,w=0,d=0){return x+w/2>260&&x-w/2<1450&&z+d/2>960&&z-d/2<1550;},
- build({world:b,northshore,landmark,bounds}){
+ build({world:world,northshore,landmark:label,bounds:solid}){
+ // Each landmark uses an explicit metre-like local scale around its footprint centre.
+ let origin=[0,8.4,0],scale=[1,1,1];
+ const point=p=>p.map((v,i)=>origin[i]+(v-origin[i])*scale[i]);
+ const setScale=(x,z,sx,sy,sz)=>{origin=[x,8.4,z];scale=[sx,sy,sz];};
+ const b={box(x,y,z,w,h,d,c,m){let p=point([x,y,z]);world.box(...p,w*scale[0],h*scale[1],d*scale[2],c,m)},
+ rod(a,c,r,col,m){world.rod(point(a),point(c),r*Math.min(...scale),col,m)},
+ tri(a,c,d,col,m){world.tri(point(a),point(c),point(d),col,m)},
+ quad(a,c,d,e,col,m){world.quad(point(a),point(c),point(d),point(e),col,m)}};
+ const bounds=(x,z,w,h,d,y=7)=>{let p=point([x,y,z]);solid(p[0],p[2],w*scale[0],h*scale[1],d*scale[2],p[1]);};
+ const landmark=(name,p,h)=>label(name,point(p),h*scale[1]);
  const stone=[.48,.39,.32],pink=[.49,.36,.29],brick=[.37,.16,.10],dark=[.065,.09,.095],metal=[.36,.4,.38];
  const masonry=[.82,.06,0,0],steel=[.38,.65,0,0],glass=[.23,.08,0,1],paving=[.88,.03,0,18];
  const box=(x,y,z,w,h,d,c=stone,m=masonry)=>b.box(x,y,z,w,h,d,c,m);
  const rod=(a,c,r=.10,color=metal)=>b.rod(a,c,r,color,steel);
- const stats={clockFaces:0,roofStrips:0,railPosts:0,benches:0,palms:0,landmarks:6};
- function disc(x,y,z,r,c,vertical=false){for(let i=0;i<32;i++){let a=i*Math.PI/16,t=(i+1)*Math.PI/16;let pt=q=>vertical?[x+Math.cos(q)*r,y+Math.sin(q)*r,z]:[x+Math.cos(q)*r,y,z+Math.sin(q)*r];b.tri([x,y,z],pt(a),pt(t),c,masonry);}}
- function palm(x,z){rod([x,8.5,z],[x+.8,20,z],.36,[.26,.20,.13]);for(let j=0;j<8;j++){let a=j*Math.PI/4;let tip=[x+Math.cos(a)*6,18.8,z+Math.sin(a)*6];b.tri([x+.8,20,z],[tip[0]+.7,tip[1],tip[2]], [tip[0]-.7,tip[1]-.2,tip[2]],[.10,.19,.10],masonry);}stats.palms++;}
+ const stats={clockFaces:0,roofStrips:0,railPosts:0,benches:0,palms:0,landmarks:7};
+ function disc(x,y,z,r,c,vertical=false){for(let i=0;i<32;i++){let a=i*Math.PI/16,t=(i+1)*Math.PI/16;let pt=q=>vertical?[x+Math.cos(q)*r,y+Math.sin(q)*r,z]:[x+Math.cos(q)*r,y,z+Math.sin(q)*r];b.tri([x,y,z],pt(t),pt(a),c,masonry);}}
+ function palm(x,z){rod([x,8.5,z],[x+.35,16.5,z],.20,[.26,.20,.13]);for(let j=0;j<8;j++){let a=j*Math.PI/4;let tip=[x+Math.cos(a)*3.4,15.2,z+Math.sin(a)*3.4];b.tri([x+.35,16.5,z],[tip[0]+.7,tip[1],tip[2]], [tip[0]-.7,tip[1]-.2,tip[2]],[.10,.19,.10],masonry);}stats.palms++;}
  // Continuous public waterfront and paired handrails follow the existing north bank.
  for(let x=280;x<1450;x+=30){let z=northshore(x);box(x+15,8.1,z+24,30,.3,46,[.34,.31,.26],paving);
-  for(let dx of [0,10,20]){let zz=northshore(x+dx)+2;rod([x+dx,8.4,zz],[x+dx,9.6,zz]);stats.railPosts++;}
+  for(let dx=0;dx<30;dx+=2.5){let zz=northshore(x+dx)+2;rod([x+dx,8.4,zz],[x+dx,9.6,zz]);stats.railPosts++;}
   for(let y of [8.9,9.6])rod([x,y,z+2],[x+30,y,northshore(x+30)+2]);
-  if(x%90===10){box(x+10,8.5,z+31,4,.45,1.4,[.24,.15,.085]);box(x+10,9,z+31.6,4,.9,.15,[.24,.15,.085]);stats.benches++;palm(x+22,z+39);}
+  if(x%90===10){box(x+10,8.4,z+31,2,.45,.6,[.24,.15,.085]);box(x+10,8.85,z+31.3,2,.4,.10,[.24,.15,.085]);stats.benches++;palm(x+22,z+39);}
  }
  // Star Ferry: piled landing, two levels, open bays and green pitched roofs.
- const px=345,pz=northshore(px)-46;
+ const px=345,pz=northshore(px)-24;setScale(px,pz,.55,.70,.72);
  box(px,6.2,pz,67,2,154,[.24,.25,.22]);bounds(px,pz,67,2,154,6.2);
  for(let x=px-28;x<=px+28;x+=14)for(let z=pz-66;z<=pz+66;z+=22){box(x,0,z,1.4,6.2,1.4,[.16,.18,.17]);box(x,8.2,z,.6,9,.6,stone);}
  for(let y of [8.2,12.4]){box(px,y,pz,62,.45,146);for(let z=pz-60;z<pz+70;z+=20)box(px,y+.5,z,59,.8,.25,metal,steel);}
@@ -25,7 +35,7 @@ globalThis.HarbourTST={
  bounds(px,pz,70,3,150,16);box(px,17.2,pz+30,16,5,22,[.16,.27,.21]);
  landmark('尖沙咀天星碼頭',[px,23,pz],18);
  // Red-brick Clock Tower: a square shaft, granite bands and four clock faces.
- const tx=452,tz=1080;
+ const tx=452,tz=1080;setScale(tx,tz,.65,1,.65);bounds(tx,tz,15,36.6,15,8.4);
  box(tx,8.4,tz,15,28,15,brick);box(tx,8.4,tz,18,1.2,18);box(tx,34.4,tz,17,1.4,17);
  box(tx,36,tz,14,9,14,brick);box(tx,44,tz,17,1,17);box(tx,45,tz,11,5,11,stone);
  for(let y=12;y<34;y+=4)for(let sign of [-1,1]){box(tx+sign*7.55,y,tz,.12,.35,15);box(tx,y,tz+sign*7.55,15,.35,.12);}
@@ -39,6 +49,7 @@ globalThis.HarbourTST={
  for(let j=0;j<8;j++){let a=j*Math.PI/4;rod([tx+Math.cos(a)*4.4,45,tz+Math.sin(a)*4.4],[tx+Math.cos(a)*4.4,49.8,tz+Math.sin(a)*4.4],.3,stone);}
  for(let j=0;j<24;j++){let a=j*Math.PI/12,c=(j+1)*Math.PI/12;b.tri([tx,52.4,tz],[tx+Math.cos(a)*6,49.7,tz+Math.sin(a)*6],[tx+Math.cos(c)*6,49.7,tz+Math.sin(c)*6],[.14,.23,.17],masonry);}
  rod([tx,52.4,tz],[tx,59.4,tz],.12);landmark('尖沙咀鐘樓',[tx,60,tz],44);
+ setScale(652,1190,.85,.78,.85);
  // Cultural Centre: broad pale-pink, windowless curved shells with segmented roofs.
  box(652,8.4,1190,245,12,135,pink);
  for(let wing=0;wing<2;wing++){
@@ -53,18 +64,20 @@ globalThis.HarbourTST={
   }
  }
  for(let wing=0;wing<2;wing++)for(let edge of [0,1]){let x=533+wing*119+edge*115.2,y=edge?23:57;let pts=[[x,20.4,1122],[x,y,1122],[x,y,1258],[x,20.4,1258]];if(edge)pts.reverse();b.quad(...pts,pink,masonry);}
+ setScale(0,0,1,1,1);
  // Arcade, plaza and long reflecting pool remain open between the main buildings.
  box(651,8.45,1098,250,.25,35,[.39,.34,.28],paving);
  for(let x=540;x<770;x+=12){box(x,8.7,1117,1,8,1,pink);}
  box(651,16.7,1117,246,.65,5,pink);
  box(492,8.5,1100,18,.35,59);box(492,8.86,1100,15,.07,54,[.08,.17,.16],[.2,.1,0,4]);
  landmark('香港文化中心',[651,59,1190],49);
+ setScale(900,1100,.82,1,.85);
  // Hong Kong Museum of Art: low horizontal volumes, recessed glazing and pale fins.
  box(900,8.4,1100,157,27,87,[.46,.43,.36]);box(900,12,1055.8,144,17,.4,[.08,.14,.16],glass);
  for(let x=827;x<=973;x+=9)box(x,12,1055.3,.65,21,1.2,[.55,.52,.44]);
  box(900,35.4,1100,160,1.3,91,[.58,.54,.45]);landmark('香港藝術館',[900,38,1100],29);
  // Space Museum's recognisable hemisphere, with normals from the mesh triangles.
- const sx=922,sz=1288,r=28;
+ const sx=922,sz=1288,r=28;setScale(sx,sz,.68,.68,.68);
  box(sx,8.4,sz,66,5,67,[.48,.44,.37]);
  for(let j=0;j<12;j++)for(let k=0;k<32;k++){
   let pt=(a,t)=>[sx+r*Math.cos(a)*Math.sin(t),13.4+r*Math.cos(t),sz+r*Math.sin(a)*Math.sin(t)];
@@ -73,15 +86,55 @@ globalThis.HarbourTST={
   else b.quad(pt(a,t),pt(c,t),pt(c,u),pt(a,u),[.66,.61,.49],masonry);
  }
  bounds(sx,sz,56,28,56,13.4);landmark('香港太空館',[sx,43,sz],33);
+ setScale(0,0,1,1,1);
  // Salisbury Road defines the northern edge of the first authored waterfront strip.
  box(855,8.2,1385,1160,.15,24,[.06,.065,.065]);
  for(let x=295;x<1420;x+=18)box(x,8.38,1385,8,.015,.18,[.65,.61,.45]);
  for(let z of [1371,1399])box(855,8.3,z,1160,.2,4,[.31,.30,.27],paving);
- // Peninsula-inspired setback hotel mass, behind the waterfront museums.
- box(620,8.4,1480,162,29,65,[.58,.50,.37],[.78,.08,0,6]);
- for(let x of [557,683])box(x,37.4,1480,33,13,60,[.58,.50,.37],[.78,.08,0,6]);
- box(620,37.4,1495,42,97,34,[.40,.37,.30],[.75,.08,0,6]);
- landmark('半島酒店 · 輪廓重建',[620,138,1495],126);
+ // Peninsula: seven-storey historic wings surround the arrival court; rear tower is distinct.
+ const cream=[.61,.53,.40],trim=[.71,.65,.52],window=[.045,.09,.11];
+ box(620,8.4,1510,126,27,35,cream);
+ for(let x of [572,668])box(x,8.4,1470,30,27,80,cream);
+ box(620,8.43,1460,66,.15,66,[.19,.19,.17],paving);
+ box(620,12.5,1487,32,.8,12,[.13,.22,.17]);
+ for(let x of [607,633])box(x,8.4,1483,.55,4.1,.55,trim);
+ function facade(x0,x1,z,y0,rows,step=4){
+  for(let row=0;row<rows;row++)for(let x=x0;x<=x1;x+=step){let y=y0+row*3.55;
+   box(x,y,z,1.45,2.1,.15,window);box(x,y-.18,z-.12,1.9,.18,.35,trim);
+  }
+ }
+ facade(560,584,1429.9,10.2,7);facade(656,680,1429.9,10.2,7);facade(563,677,1492.4,10.2,7);
+ for(let y of [12.2,19.3,26.4,33.5]){box(620,y,1492,126,.25,.5,trim);for(let x of [572,668])box(x,y,1429.7,31,.25,.6,trim);}
+ for(let x of [572,668]){box(x,35.4,1470,32,1,82,trim);box(x,36.4,1470,27,2.5,76,[.22,.24,.20]);}
+ box(620,35.4,1510,128,1,37,trim);
+ box(620,35.4,1510,47,82,33,cream);box(620,117.4,1510,43,6,31,trim);
+ facade(599,641,1493.3,38,22,4.2);
+ for(let y=39;y<117;y+=3.55)box(620,y,1493,47,.15,.4,trim);
+ for(let x of [598,642])box(x,35.4,1510,2,82,34,trim);
+ box(620,123.4,1510,49,.7,35,[.23,.25,.23]);
+ for(let x of [608,632]){disc(x,124.15,1510,8,[.53,.52,.42]);box(x,124.18,1510,6,.025,.6,trim);for(let dx of [-2.7,2.7])box(x+dx,124.18,1510,.6,.025,6,trim);}
+ landmark('半島酒店',[620,127,1510],116);
+ // K11 MUSEA: stepped limestone waterfront podium, bronze bays and planted terraces.
+ const kx=1205,kz=1138,limestone=[.49,.41,.29],bronze=[.25,.19,.11],leaf=[.095,.18,.085];
+ box(kx,8.4,kz,290,24,140,limestone);
+ box(kx-15,32.4,kz+13,235,12,112,limestone);
+ box(kx-25,44.4,kz+27,178,7,80,limestone);
+ for(let x=1068;x<1345;x+=12){
+  box(x,12,1067.8,8,16,.3,window,glass);
+  for(let dx of [-4.4,4.4])box(x+dx,11.7,1067.2,.5,18,.7,bronze,steel);
+  box(x,29.7,1067.3,10,.7,1.4,limestone);
+  for(let y of [18,24])box(x,y,1067.1,8,.25,.35,bronze,steel);
+ }
+ for(let tier of [[1205,32.5,1069,286],[1190,44.5,1094,231],[1180,51.5,1125,174]]){
+  let [x,y,z,w]=tier;box(x,y,z,w,.55,3.2,limestone);box(x,y+.55,z,w,1.3,2.5,leaf);
+ }
+ for(let x of [1070,1142,1298,1340])for(let y=13;y<31;y+=3){box(x,y,1066.7,3.5,2.6,.65,leaf);}
+ // Recessed circular facade openings are rings with dark inset discs.
+ for(let x of [1110,1190,1270]){disc(x,38.5,1094.7,3.3,window,true);for(let j=0;j<24;j++){let a=j*Math.PI/12,c=(j+1)*Math.PI/12;rod([x+3.5*Math.cos(a),38.5+3.5*Math.sin(a),1094.4],[x+3.5*Math.cos(c),38.5+3.5*Math.sin(c),1094.4],.22,bronze);}}
+ box(1205,8.45,1045,290,.2,32,[.35,.31,.25],paving);
+ for(let x=1070;x<1350;x+=35){box(x,8.6,1048,7,.6,3,limestone);box(x,9.2,1048,6.5,.7,2.5,leaf);}
+ landmark('K11 MUSEA',[1205,55,1138],43);
+ stats.scaleRevision=57;stats.benchLength=2;stats.railingSpacing=2.5;
  return stats;
  }
 };
