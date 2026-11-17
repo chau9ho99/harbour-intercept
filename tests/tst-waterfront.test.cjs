@@ -1,0 +1,22 @@
+const {test}=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const vm=require('node:vm');
+const s=fs.readFileSync('game.js','utf8');const context=vm.createContext({});
+vm.runInContext(fs.readFileSync('tst-waterfront.js','utf8'),context);
+// Use the game's actual triangle/normal and box builder, without a GPU upload.
+vm.runInContext(`const TAU=Math.PI*2;const add=(a,b)=>a.map((v,i)=>v+b[i]),sub=(a,b)=>a.map((v,i)=>v-b[i]),mul=(a,s)=>a.map(v=>v*s),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],norm=a=>mul(a,1/(Math.hypot(...a)||1));let collisionBoxes=[];${s.slice(s.indexOf('class Builder{'),s.indexOf('let texCanvas='))};globalThis.builder=new Builder();globalThis.boxes=collisionBoxes;`,context);
+const landmarks=[],bounds=[];
+const stats=context.HarbourTST.build({world:context.builder,northshore:x=>930+80*Math.sin(x*.0008+.5),landmark:(...a)=>landmarks.push(a),bounds:(x,z,w,h,d,y=7)=>bounds.push({x,z,w,h,d,y})});
+test('six named landmarks, four clock faces and both curved roof shells are authored',()=>{assert.equal(landmarks.length,6);assert.equal(stats.clockFaces,4);assert.equal(stats.roofStrips,48);assert.ok(stats.railPosts>100);assert.ok(stats.palms>5)});
+test('geometry is finite and bounded; dome normals face outwards',()=>{
+ const a=context.builder.a;assert.ok(a.length>10000&&a.length<2000000);assert.ok(a.every(Number.isFinite));
+ let dome=0;for(let i=0;i<a.length;i+=15){const [x,y,z,nx,ny,nz]=a.slice(i,i+6);if(y>15&&y<41.5&&Math.hypot(x-922,z-1288)<28.01&&z>1260&&z<1316){const dot=(x-922)*nx+(y-13.4)*ny+(z-1288)*nz;if(Math.abs(Math.hypot(x-922,y-13.4,z-1288)-28)<.01){assert.ok(dot>0);dome++;}}}assert.ok(dome>300);
+});
+test('cultural roof collision covers each strip and Clock Tower is solid',()=>{assert.equal(bounds.filter(b=>b.y===20.4).length,48);assert.ok(context.boxes.some(b=>b.x===452&&b.z===1080&&b.h===28));assert.ok(bounds.some(b=>b.x===922&&b.h===28))});
+test('authored waterfront reserve excludes generic buildings and roads',()=>{assert.ok(context.HarbourTST.reserved(652,1190));assert.ok(!context.HarbourTST.reserved(-600,-900));assert.ok(!context.HarbourTST.reserved(2000,1400))});
+test('study camera names, view indices and buttons stay aligned',()=>{
+ const start=s.indexOf('let views=')+'let views='.length,end=s.indexOf(';if(studyView===50)',start);
+ const views=vm.runInNewContext(s.slice(start,end),{streetSamples:[[0,0,0,0]],shoreline:()=>-630});
+ assert.equal(views.length,55);assert.equal(views[50],null);assert.equal(views[51][0][2],540);
+ const html=fs.readFileSync('index.html','utf8');for(const id of ['spotTST','spotTSTClock','spotTSTCulture','spotTSTMuseums']){assert.ok(html.includes(`id="${id}"`));assert.ok(s.includes(`['${id}',`))}
+ assert.ok(html.indexOf('src="tst-waterfront.js')<html.indexOf('src="game.js'));
+});
+console.log('TST vertices:',context.builder.a.length/15,'collision bounds:',bounds.length+context.boxes.length);

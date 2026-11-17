@@ -145,3 +145,9 @@ G／自動：追擊固定敵機，手動轉向會取消；T／追蹤：標記目
 - This pass changes materials and atmosphere; building footprints and geographic accuracy are unchanged. Geometry and texture memory do not increase; high-quality water adds two texture lookups per pixel. Phone frame rate has not been measured.
 - Validation: Chromium WebGL2/SwiftShader successfully compiled and linked the actual scene vertex/fragment shaders (`LINK_STATUS=true`, `gl.getError()=0`). JavaScript syntax, seven existing input regressions and diff whitespace checks pass. Full-city screenshot attempts exceeded practical software-rendering capacity, so no before/after image acceptance or full-scene visual QA is claimed.
 - Branch is stacked on V54 pause/input fixes; review the material-only diff against `fix/flight-pause-input`.
+
+## 2026-11-17 — V56 Tsim Sha Tsui waterfront, first pass
+- Replaced simple north-bank Clock Tower/Cultural Centre placeholders with a dedicated 3D waterfront module: Star Ferry pier, four-faced Clock Tower, curved Cultural Centre shells, Museum of Art, Space Museum hemisphere and a Peninsula-inspired backdrop.
+- Added promenade paving, rails, benches, palms, forecourt pool and a Salisbury Road strip. Reserved the authored area against generic building/road generation.
+- Added four study viewpoints and a direct homepage entry. Detailed scope, reference links and accuracy limits are in TSIM-SHA-TSUI.md.
+- Five new geometry/integration checks and seven existing flight-input checks pass; JS syntax and whitespace checks pass. Browser/GPU visual acceptance and mobile performance remain unverified because managed browser controls are unavailable.
