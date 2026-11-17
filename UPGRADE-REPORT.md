@@ -129,3 +129,10 @@ G／自動：追擊固定敵機，手動轉向會取消；T／追蹤：標記目
 - Added an interpreted Central infill pass using actual building collision boxes, keeping a clearance around solids, the existing procedural road grid, tram corridor, station entrances and elevated terrain. It places medium-height narrow buildings, rooftop setbacks, ground-floor shops and facade details on qualifying vacant sites.
 - Existing city, traffic, tram, station and ground-material mocked regressions pass; generated 359 buildings and 718 shopfronts before the final duplicate-collision optimisation. These are procedural infill, not individually identified real Hong Kong buildings. No true GPU screenshot, aerial comparison, loading-time or mobile performance measurements were available.
 - Limits: road exclusions are based on the existing procedural grid and do not prove every auxiliary road or overpass is clear; an actual visual flythrough is needed. This is not a surveyed city reconstruction. Sites deployment only.
+
+## 2026-11-17 — V54 flight input and pause recovery
+- Settings now preserve the previous pause state and block keyboard flight controls while open. Escape closes settings without silently resuming a previously paused sortie.
+- Pause, window blur and background-tab suspension clear all held keys, weapons, throttle/brake input and the touch stick. Returning from a background tab requires explicit resume, including when settings were open.
+- Mission intro now freezes while settings are open or the page is backgrounded; skip actions respect this state. New sorties clear stale input and the pause overlay.
+- Keyboard events originating from form controls and buttons retain native interaction instead of triggering flight shortcuts. Touch hold controls accept input only during active flight.
+- Validation: `node tests/flight-controls.test.cjs` passes seven regression scenarios; both JavaScript files pass `node --check`; `git diff --check` passes. Tests exercise the actual pause/input handlers in a mocked DOM; real WebGL rendering and device pointer behavior were not verified.
