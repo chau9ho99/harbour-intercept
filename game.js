@@ -85,15 +85,20 @@ vec3 groundAsphalt(vec2 p){
 void main(){vec3 N=normalize(n),V=normalize(eye-wp);float rough=mat.x,metal=mat.y,em=mat.z,type=mat.w;vec3 base=col;bool aircraft=type>4.5&&type<5.5;float water=step(2.5,type)* (1.-step(3.5,type));float wet=step(3.5,type)*(1.-step(4.5,type));float glass=0.;float seaFoam=0.;
 if(type>.5&&type<2.5&&abs(N.y)<.5){
  vec2 grid=uv*vec2(16.,29.),cell=fract(grid),id=floor(grid);
- float rnd=fract(sin(dot(id,vec2(127.1,311.7)))*43758.5453);
+ // World position breaks repeated window patterns between neighbouring towers.
+ float buildingTone=groundHash(floor(wp.xz/55.));
+ float rnd=groundHash(id+floor(wp.xz/55.)*7.13);
  vec2 aa=max(fwidth(grid),vec2(.006));
  float pane=smoothstep(.035,.035+aa.x,cell.x)*(1.-smoothstep(.965-aa.x,.965,cell.x))*smoothstep(.16,.16+aa.y,cell.y)*(1.-smoothstep(.96-aa.y,.96,cell.y));
  if(type>1.5)pane=1.-smoothstep(.25,.25+max(aa.x,aa.y),length(cell-.5));
  float fade=smoothstep(.35,1.4,max(aa.x,aa.y));pane=mix(pane,.72,fade);glass=pane;
  vec3 texel=facadeReady?pow(texture(facadeTex,grid/vec2(8.,7.)).rgb,vec3(2.2)):vec3(.18,.25,.29);
  vec3 glazing=mix(col*.42,texel,.6)*mix(.86,1.14,rnd);
+ glazing*=mix(vec3(.86,.95,1.04),vec3(1.04,1.,.91),buildingTone);
+ float blind=step(.68,rnd)*(1.-smoothstep(.32,.38,cell.y));
+ glazing=mix(glazing,vec3(.16,.175,.17),blind*.38*(1.-fade));
  base=mix(vec3(.29,.3,.29),glazing,pane);
- rough=mix(.44,.17+rnd*.07,pane);metal=mix(.65,.06,pane);
+ rough=mix(.52,.19+rnd*.13,pane);metal=mix(.65,.06,pane);
  if(type>1.5){base=mix(vec3(.46,.44,.38),vec3(.045,.09,.12),pane);rough=mix(.72,.18,pane);metal=mix(.08,.14,pane);glass=pane;}
  float office=step(.92,rnd)*(.6+.4*fract(rnd*17.));
  float blinds=1.-smoothstep(.62,.7,cell.y);
@@ -110,7 +115,10 @@ if(type>5.5&&type<7.5&&abs(N.y)<.5){
  float pane=smoothstep(.15,.15+aa.x,c.x)*(1.-smoothstep(.85-aa.x,.85,c.x))*smoothstep(.22,.22+aa.y,c.y)*(1.-smoothstep(.86-aa.y,.86,c.y));
  pane=mix(pane,.41,smoothstep(.5,1.5,max(aa.x,aa.y)));
  float joints=(1.-smoothstep(.015,.03,c.x))+(1.-smoothstep(.015,.035,c.y));
- float weather=(.93+.07*sin(wp.y*.15+floor(grid.x)*4.));
+ float streak=weatherNoise(vec2(wp.x+wp.z,wp.y)*vec2(.032,.003));
+ float weather=.88+.12*sin(wp.y*.15+floor(grid.x)*4.);
+ weather*=1.-smoothstep(.50,.80,streak)*.16;
+ weather*=mix(.82,1.,smoothstep(8.,27.,wp.y));
  vec3 wall=col*weather*(1.-joints*.13);vec3 glazing=mix(vec3(.045,.085,.11),vec3(.15,.18,.17),r);
  base=mix(wall,glazing,pane);glass=pane*.65;rough=mix(.83,.23,pane);metal=pane*.09;
  em=step(.96,r)*pane*.025;
@@ -200,10 +208,14 @@ if(water>.5){
  float wash=(.5+.5*sin(shoreDistance*1.4-time*1.7+seaPatch*4.));
  float shoreFoam=(1.-smoothstep(1.,9.,shoreDistance))*smoothstep(.30,.64,seaPatch+wash*.28)*coastMask;
  seaFoam=clamp(crest*.70+shoreFoam*.82,0.,.88);
- rough=mix(.21,.32,seaPatch);metal=0.;
- base=mix(vec3(.014,.075,.080),vec3(.032,.15,.145),seaPatch*.65);
+ // Derivative-based slope variance broadens distant highlights instead of sparkling.
+ float slopeVariance=dot(dFdx(N),dFdx(N))+dot(dFdy(N),dFdy(N));
+ rough=clamp(sqrt(.16*.16+min(slopeVariance*.6,.10)),.16,.36);metal=0.;
+ float shallows=(1.-smoothstep(2.,55.,shoreDistance))*coastMask;
+ base=mix(vec3(.018,.060,.065),vec3(.028,.105,.103),seaPatch);
+ base=mix(base,vec3(.047,.095,.079),shallows*.38);
 }
-vec3 L=normalize(vec3(-.75,.32,.58)),H=normalize(V+L);float nl=max(dot(N,L),0.),nv=max(dot(N,V),.001),nh=max(dot(N,H),0.),vh=max(dot(V,H),0.);float a=rough*rough,a2=a*a;float D=a2/(PI*pow(nh*nh*(a2-1.)+1.,2.)+.0001);float k=pow(rough+1.,2.)/8.;float G=nv/(nv*(1.-k)+k)*nl/(nl*(1.-k)+k);vec3 F0=mix(vec3(.04),base,metal),F=F0+(1.-F0)*pow(1.-vh,5.);vec3 spec=D*G*F/max(4.*nv*nl,.001);float sunlit=sunVisibility(wp,normalize(n),nl);vec3 color=(base*(1.-metal)/PI+spec)*vec3(2.6,1.98,1.35)*nl*sunlit+base*vec3(.27,.34,.44)*(.48+N.y*.26);vec3 R=reflect(-V,N);vec3 environment=sky(R);
+vec3 L=normalize(vec3(-.75,.32,.58)),H=normalize(V+L);float nl=max(dot(N,L),0.),nv=max(dot(N,V),.001),nh=max(dot(N,H),0.),vh=max(dot(V,H),0.);float a=rough*rough,a2=a*a;float D=a2/(PI*pow(nh*nh*(a2-1.)+1.,2.)+.0001);float k=pow(rough+1.,2.)/8.;float G=nv/(nv*(1.-k)+k)*nl/(nl*(1.-k)+k);vec3 F0=mix(vec3(water>.5?.0204:.04),base,metal),F=F0+(1.-F0)*pow(1.-vh,5.);vec3 spec=D*G*F/max(4.*nv*nl,.001);float sunlit=sunVisibility(wp,normalize(n),nl);vec3 color=(base*(1.-metal)/PI+spec)*vec3(2.6,1.98,1.35)*nl*sunlit+base*vec3(.27,.34,.44)*(.48+N.y*.26);vec3 R=reflect(-V,N);vec3 environment=sky(R);
 if(glass>.0){
  float az=atan(R.z,R.x);float roof=.035+.075*pow(.5+.5*sin(floor(az*53.)*17.31),3.);
  float silhouette=1.-smoothstep(roof-.012,roof+.012,R.y);
@@ -216,10 +228,18 @@ if(water>.5||wet>.5){
  vec2 r=reflection.xy/max(reflection.w,.001)*.5+.5;
  vec2 distortion=N.xz*(water>.5?.035:.009);
  vec2 q=r+distortion;vec3 re=texture(reflectTex,clamp(q,.002,.998)).rgb;
+ // Filter in linear light; water roughness stretches reflections along the ripples.
+ vec3 reflectedLinear=re*re*4.;
+ if(water>.5&&environmentHigh){
+  vec2 spread=vec2(.0015,.0035)*mix(.35,1.,rough/.36);
+  vec3 r1=texture(reflectTex,clamp(q+spread,.002,.998)).rgb;
+  vec3 r2=texture(reflectTex,clamp(q-spread,.002,.998)).rgb;
+  reflectedLinear=reflectedLinear*.5+(r1*r1+r2*r2);
+ }
  float inFrame=step(.001,reflection.w)*smoothstep(0.,.04,min(min(q.x,q.y),min(1.-q.x,1.-q.y)));
- vec3 refl=mix(environment,re*re*4.,inFrame);
+ vec3 refl=mix(environment,reflectedLinear,inFrame);
  float fres=.02+.98*pow(1.-nv,5.);
- color=mix(color,refl,water>.5?clamp(.18+fres*.76,0.,.94):.28);
+ color=mix(color,refl,water>.5?clamp(.08+fres*.88,0.,.96):.28);
  if(water>.5){color+=vec3(.018,.055,.043)*max(0.,wp.y+.25)*pow(1.-nv,2.);color=mix(color,vec3(.64,.72,.70)*( .72+.28*nl),seaFoam);}
 }
 if(type>7.5&&type<8.5){
@@ -236,7 +256,8 @@ if(aircraft)color+=base*.25;float distanceToEye=length(eye-wp);
 // Height-dependent maritime haze: integrate density with three bounded samples.
 float h0=max(abs(eye.y),0.),h1=max(wp.y,0.);
 float haze=(exp(-h0/210.)+4.*exp(-mix(h0,h1,.5)/210.)+exp(-h1/210.))/6.;
-float fog=1.-exp(-distanceToEye*(.000035+.000105*haze)*(aircraft?.40:1.));
+// Humid harbour air progressively separates the distant banks and skyline.
+ float fog=1.-exp(-distanceToEye*(.000045+.000155*haze)*(aircraft?.40:1.));
 vec3 fogColor=atmosphere(normalize(vec3(wp.x-eye.x,.025,wp.z-eye.z)));
 color=mix(color,fogColor,min(fog,.80));float jitter=fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5;outColor=vec4(sqrt(max(color,vec3(0))/4.)+jitter/255.,type>19.5&&type<20.5?.24+.55*pow(1.-nv,3.):1.);outNormal=vec4(N*.5+.5,clamp(depth/6500.,0.,1.));}`);
 const shadowP=program(`#version 300 es
@@ -1973,7 +1994,7 @@ use(bloomP);i1(bloomP,'tex',0);for(let i=0;i<2;i++){gl.bindFramebuffer(gl.FRAMEB
 gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);use(postP);bindTex(0,sceneTex);bindTex(1,normalTex);bindTex(2,bloomTex[1]);i1(postP,'tex',0);i1(postP,'normalTex',1);i1(postP,'bloomTex',2);v2(postP,'resolution',[W,H]);f1(postP,'time',mode==='study'?0:time);f1(postP,'aspect',aspect);f1(postP,'damage',mode==='study'?0:damage);f1(postP,'impactFlash',mode==='study'?0:impactFlash);f1(postP,'concussion',mode==='study'?0:clamp(shake*.65,0,1));i1(postP,'rain',rain&&mode!=='study'?1:0);i1(postP,'ao',quality==='high'?1:0);gl.drawArrays(gl.TRIANGLES,0,3);gl.enable(gl.DEPTH_TEST);if(mode==='play'&&frame%3===0)hud();if(mode==='menu'&&frame%6===0)updateLandmarks();if(window.FlightHUD){let ff=forward(player.yaw,player.pitch),fp=project(add(player.pos,mul(ff,5000)));window.FlightHUD.draw({active:mode==='play'||mode==='crash',lost:mode==='crash',width:innerWidth,height:innerHeight,dt,paused,time,pitch:player.pitch,roll:player.roll,yaw:player.yaw,speed:player.speed,altitude:player.pos[1],health:player.hp,missiles:player.missiles,locked:!!selected&&aimDuration>.45,range:selected?len(sub(selected.pos,player.pos)):null,fpm:fp,detail:hudDetail,brightness:hudBrightness,touch:!!window.matchMedia?.('(pointer:coarse)').matches});}camPos=baseCamera;camTarget=baseTarget;}
 canvas.addEventListener('pointerdown',e=>{if(mode==='study'&&studyView===50){hangarDrag=e.clientX;canvas.setPointerCapture?.(e.pointerId);}});canvas.addEventListener('pointermove',e=>{if(hangarDrag!==null){hangarYaw+=(e.clientX-hangarDrag)*.012;hangarDrag=e.clientX;}});for(let ev of ['pointerup','pointercancel'])canvas.addEventListener(ev,()=>hangarDrag=null);canvas.addEventListener('wheel',e=>{if(mode==='study'&&studyView===50){e.preventDefault();hangarZoom=clamp(hangarZoom+e.deltaY*.025,25,90);}},{passive:false});
 // Expose read-only diagnostics for graphics verification, without gameplay cheats.
-window.flightDiagnostics=()=>({webgl:2,mode,introAge,width:W,height:H,samples,enemies:enemies.length,kills,health:player.hp,elapsed,vertices:worldMesh.count,glError:gl.getError(),buildingShadows:shadowsEnabled,shadowMapSizes:shadowMaps.map(m=>m.size),shadowCasterVertices:worldMesh.count,effects:['two-range PCF building shadows','GGX PBR','planar wet reflections','screen-space ambient occlusion','bloom','ACES','raindrop refraction'],proceduralModels:true,photorealMaterialAtlas:materialReady,enemyScale:1.7,enemyModels:['F-16-inspired','F-15-inspired'],initialEnemyRange:360,supplyPosition:supplyPoint.slice(),targetIndicators:true,avionicsHUD:!!window.FlightHUD,camera:camMode,photoBackdrop:false,photographicFacadeMaterials:facadeReady,proceduralBuildingFacades:true,urbanFamilies:urbanStats,cityDetail,roadVehiclePositions:Array.from({length:18},(_,i)=>roadVehicle(i,mode==='study'?0:time).pos),animatedFerries:4,ferryPositions:[0,1,2,3].map(i=>ferryState(i).pos),wakeTrails:true,innerStreetStats:innerStats,aircraftType,rocketSalvos,rocketCD,flareCharges,flareCD,enemyTypes:enemies.map(e=>e.enemyType),cityPatrols:enemies.filter(e=>!!e.cityAnchor).length,enemyShots,enemyHits,difficulty,score,combo,maxCombo,gunHeat,overheated,supplyCooldown,supplyCount,autoActive,autoSafetyHold,autoUses,autoLimit,trackedId:tracked&&!tracked.dead?tracked.id:null,combatStats:{...combatStats},threatTime,nearestContact:enemies.length?(()=>{let e=enemies.reduce((a,b)=>len(sub(a.pos,player.pos))<len(sub(b.pos,player.pos))?a:b);return{id:e.id,...contactBearing(e.pos)}})():null,westWaterfront,buildingImpactCount,waterfrontFix,marketStats,centralInfillStats,groundMaterialStats,centralTransit,westGroundStats,westMassingStats,westernStreetStats,westernVehiclePositions:Array.from({length:4},(_,i)=>westernVehicle(i,mode==='study'?0:time).pos),environment:{version:50,waterVertices:waterMesh.count,liteWaterVertices:waterLiteMesh.count,geometryWaves:true,coastalFoam:true,cloudLayers:2,heightHaze:true,animated:mode!=='study'||studyView>=48},sceneStyle:'harbour-atmosphere-v50',landmarks:landmarks.map(l=>l.name),harbourAxis:'east-west',crashSequence:mode==='crash',collisionShapes:collisionBoxes.length,crashAge:crash?.age||0});
+window.flightDiagnostics=()=>({webgl:2,mode,introAge,width:W,height:H,samples,enemies:enemies.length,kills,health:player.hp,elapsed,vertices:worldMesh.count,glError:gl.getError(),buildingShadows:shadowsEnabled,shadowMapSizes:shadowMaps.map(m=>m.size),shadowCasterVertices:worldMesh.count,effects:['two-range PCF building shadows','GGX PBR','planar wet reflections','screen-space ambient occlusion','bloom','ACES','raindrop refraction'],proceduralModels:true,photorealMaterialAtlas:materialReady,enemyScale:1.7,enemyModels:['F-16-inspired','F-15-inspired'],initialEnemyRange:360,supplyPosition:supplyPoint.slice(),targetIndicators:true,avionicsHUD:!!window.FlightHUD,camera:camMode,photoBackdrop:false,photographicFacadeMaterials:facadeReady,proceduralBuildingFacades:true,urbanFamilies:urbanStats,cityDetail,roadVehiclePositions:Array.from({length:18},(_,i)=>roadVehicle(i,mode==='study'?0:time).pos),animatedFerries:4,ferryPositions:[0,1,2,3].map(i=>ferryState(i).pos),wakeTrails:true,innerStreetStats:innerStats,aircraftType,rocketSalvos,rocketCD,flareCharges,flareCD,enemyTypes:enemies.map(e=>e.enemyType),cityPatrols:enemies.filter(e=>!!e.cityAnchor).length,enemyShots,enemyHits,difficulty,score,combo,maxCombo,gunHeat,overheated,supplyCooldown,supplyCount,autoActive,autoSafetyHold,autoUses,autoLimit,trackedId:tracked&&!tracked.dead?tracked.id:null,combatStats:{...combatStats},threatTime,nearestContact:enemies.length?(()=>{let e=enemies.reduce((a,b)=>len(sub(a.pos,player.pos))<len(sub(b.pos,player.pos))?a:b);return{id:e.id,...contactBearing(e.pos)}})():null,westWaterfront,buildingImpactCount,waterfrontFix,marketStats,centralInfillStats,groundMaterialStats,centralTransit,westGroundStats,westMassingStats,westernStreetStats,westernVehiclePositions:Array.from({length:4},(_,i)=>westernVehicle(i,mode==='study'?0:time).pos),environment:{version:55,waterVertices:waterMesh.count,liteWaterVertices:waterLiteMesh.count,geometryWaves:true,coastalFoam:true,cloudLayers:2,heightHaze:true,animated:mode!=='study'||studyView>=48},sceneStyle:'harbour-material-realism-v55',landmarks:landmarks.map(l=>l.name),harbourAxis:'east-west',crashSequence:mode==='crash',collisionShapes:collisionBoxes.length,crashAge:crash?.age||0});
 function loop(t){let dt=Math.min((t-last)/1000,.04)||.016;last=t;if(!paused){time+=dt;if(mode==='intro')updateIntro(dt);else if(mode==='play')update(dt);else if(mode==='crash')updateCrash(dt);else if(mode==='end'&&crash)stepEffects(dt);}render(dt);frame++;requestAnimationFrame(loop)}requestAnimationFrame(loop);
 }}
 )();

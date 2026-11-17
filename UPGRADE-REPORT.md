@@ -136,3 +136,12 @@ G／自動：追擊固定敵機，手動轉向會取消；T／追蹤：標記目
 - Mission intro now freezes while settings are open or the page is backgrounded; skip actions respect this state. New sorties clear stale input and the pause overlay.
 - Keyboard events originating from form controls and buttons retain native interaction instead of triggering flight shortcuts. Touch hold controls accept input only during active flight.
 - Validation: `node tests/flight-controls.test.cjs` passes seven regression scenarios; both JavaScript files pass `node --check`; `git diff --check` passes. Tests exercise the actual pause/input handlers in a mocked DOM; real WebGL rendering and device pointer behavior were not verified.
+
+## 2026-11-17 — V55 harbour material realism
+- Glazing now varies its tint and pane pattern with world position, includes subdued blind patches and uses broader roughness variation. Stone/residential walls gain vertically stretched rain staining and darker lower walls.
+- Sea specular uses water's approximately 2% normal-incidence reflectance. Derivative-based slope variance broadens undersampled highlights, and high quality adds two reflection samples blended in linear light. Low quality keeps the original single reflection sample.
+- Reduced the constant mirror contribution at steep viewing angles, retained strong grazing reflections, and introduced subdued near-shore water colour variation.
+- Increased height-dependent maritime haze to separate the distant banks and skyline while retaining the existing reduced haze on aircraft.
+- This pass changes materials and atmosphere; building footprints and geographic accuracy are unchanged. Geometry and texture memory do not increase; high-quality water adds two texture lookups per pixel. Phone frame rate has not been measured.
+- Validation: Chromium WebGL2/SwiftShader successfully compiled and linked the actual scene vertex/fragment shaders (`LINK_STATUS=true`, `gl.getError()=0`). JavaScript syntax, seven existing input regressions and diff whitespace checks pass. Full-city screenshot attempts exceeded practical software-rendering capacity, so no before/after image acceptance or full-scene visual QA is claimed.
+- Branch is stacked on V54 pause/input fixes; review the material-only diff against `fix/flight-pause-input`.
