@@ -24,3 +24,10 @@ References guide recognition and broad adjacency; precise footprints, street ali
 
 ## Validation and remaining work
 `node tests/tst-waterfront.test.cjs` checks finite geometry, outward dome normals, collision envelopes, authored-area reservation and study view/button wiring. Existing seven flight-input regressions also pass. Real GPU visual acceptance and phone performance are unverified: the managed browser-control tool is unavailable. Future passes should refine the actual waterfront outline, pier dimensions, Cultural Centre roof profile and surrounding roads against same-angle photography and mapped footprints. Avenue of Stars sculptures, K11 MUSEA and detailed Harbour City are not part of this pass.
+
+## V57 — K11 MUSEA, Peninsula and scale refinement
+Added K11 MUSEA's stepped limestone-coloured volumes, bronze window bays, planted terraces and circular upper facade openings. Replaced the Peninsula placeholder with an open arrival court, seven-level historic wings, cornices/window sills and a distinct rear tower with rooftop helipads. Added direct study views for both.
+
+Applied explicit per-landmark scale transforms to geometry, labels and collision bounds: narrower Clock Tower retains its 44m body reference; pier shrinks in width/height/length; Cultural Centre and Art Museum footprints contract; Space Museum shell becomes approximately 38m in diameter. These are authored proportional estimates, not surveyed footprints. The Space Museum's documented 23m diameter is the interior projection screen and is NOT used as an exterior building dimension. Benches are now 2m long, rail posts 2.5m apart, palms reduced to roughly 8m above the promenade.
+
+References: https://www.k11musea.com/art-and-culture/architecture/ ; https://www.kpf.com/project/k11-musea ; https://hk.space.museum/en/web/spm/about-us.html ; https://www.hongkongheritage.org/ . Original harbour coordinates and shoreline remain interpreted, so precise real-world spacing is still outstanding. Six geometry/integration and seven input checks pass. Total authored TST geometry is 84,852 vertices; no measured mobile performance or GPU visual acceptance is claimed.
