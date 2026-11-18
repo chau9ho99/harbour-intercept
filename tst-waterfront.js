@@ -177,13 +177,53 @@ globalThis.HarbourTST={
  box(440,8.25,1280,130,.3,95,[.43,.39,.31],paving);
  block(440,1300,92,25,17,[.64,.58,.45]);
  for(let x of [395,485])block(x,1274,20,46,14,[.64,.58,.45]);
- // Compact side streets define occupied blocks instead of a broad reserved void.
- for(let x of [510,820,970]){box(x,8.2,1450,18,.15,370,[.06,.065,.065]);for(let side of [-1,1])box(x+side*12,8.35,1450,6,.15,370,[.32,.31,.27],paving);}
- for(let z of [1395,1510,1620])box(850,8.22,z,1120,.14,14,[.06,.065,.065]);
- for(let x=310;x<1410;x+=62)for(let z of [1452,1566]){
-  if([510,820,970].some(road=>Math.abs(x-road)<43))continue;
-  let h=32+((Math.round(x)*17+z)%57);block(x,z,48,76,h,[.36+(x%3)*.035,.34,.29]);
-  for(let y=12;y<8+h;y+=7)box(x,y,z-38.2,48,.3,.5,stone);
+ // The strip immediately north of the hotels: narrower side streets flank Nathan Road.
+ const avenueX=820;
+ const asphalt=[.065,.069,.071], kerb=[.41,.38,.34];
+ const roads=[[510,14],[avenueX,24],[970,13]];
+ const junctions=[1395,1505,1625];
+ for(const [x,width] of roads){
+  box(x,8.2,1496,width,.16,538,asphalt);
+  for(const side of [-1,1])box(x+side*(width/2+2),8.38,1496,4,.16,538,kerb,paving);
+ }
+ for(const z of junctions){
+  box(855,8.56,z,1120,.08,13,asphalt);
+  for(const side of [-1,1]){
+   const y=z+side*12;
+   for(let lane=-9;lane<=9;lane+=3)box(avenueX+lane,8.46,y,1.3,.03,3,[.76,.64,.29]);
+  }
+ }
+ for(let z=1248;z<1760;z+=14){
+  if(junctions.some(j=>Math.abs(j-z)<18))continue;
+  box(avenueX,8.39,z,.18,.025,5,[.68,.62,.48]);
+ }
+ // Parcel groups share party walls and shop podiums. The short access lanes
+ // and different rooflines remain visible from a low pass over the waterfront.
+ const lots=[[310,491],[528,800],[841,950],[990,1190],[1207,1390]];
+ const walls=[[.46,.42,.35],[.34,.36,.33],[.47,.39,.33],[.37,.38,.39]];
+ let parcel=0;
+ for(const [south,north] of [[1410,1490],[1520,1608],[1640,1740]]){
+  for(const [west,east] of lots){
+   const depth=north-south,mid=(south+north)/2;
+   box((west+east)/2,8.42,mid,east-west,.25,depth,kerb,paving);
+   let left=west+3;
+   while(left<east-15){
+    const width=Math.min(east-3-left,[28,43,35,53,32][parcel%5]);
+    const x=left+width/2, base=14, tall=parcel%7===2;
+    const inset=tall?6:1.5, buildingDepth=depth-12-(parcel%3)*4;
+    const height=tall?71+(parcel%4)*9:21+(parcel*11%31);
+    const colour=walls[parcel%4];
+    box(x,8.67,mid,width,base-8.67,depth-6,colour,masonry);
+    box(x,base,mid+1,width-2*inset,height,buildingDepth,colour,[.76,.08,0,6]);
+    bounds(x,mid+1,width-2*inset,height,buildingDepth,base);
+    const front=south+2.95;
+    b.quad([left+1,9,front],[left+1,12.5,front],[left+width-1,12.5,front],[left+width-1,9,front],
+      [.09,.14,.15],[.29,.18,0,0]);
+    box(x,12.6,front-.4,width-1,.45,1.4,parcel%3===0?[.20,.32,.25]:stone);
+    if(parcel%3===0)box(x,base+height,mid+5,width*.46,3.2,buildingDepth*.32,stone);
+    left+=width+1;parcel++;
+   }
+  }
  }
   // V59: Harbour City is a connected north/south spine with a westward Ocean Terminal.
  // Dimensions are authored estimates from official layout diagrams, not surveyed footprints.

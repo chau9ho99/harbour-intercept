@@ -15,8 +15,8 @@ test('authored waterfront reserve excludes generic buildings and roads',()=>{ass
 test('study camera names, view indices and buttons stay aligned',()=>{
  const start=s.indexOf('let views=')+'let views='.length,end=s.indexOf(';if(studyView===50)',start);
  const views=vm.runInNewContext(s.slice(start,end),{streetSamples:[[0,0,0,0]],shoreline:()=>-630});
- assert.equal(views.length,59);assert.equal(views[50],null);assert.equal(views[51][0][2],670);
- const html=fs.readFileSync('index.html','utf8');for(const id of ['spotK11','spotPeninsula','spotTST','spotTSTClock','spotTSTCulture','spotTSTMuseums']){assert.ok(html.includes(`id="${id}"`));assert.ok(s.includes(`['${id}',`))}
+ assert.equal(views.length,60);assert.equal(views[50],null);assert.equal(views[51][0][2],670);
+ const html=fs.readFileSync('index.html','utf8');for(const id of ['spotInland','spotK11','spotPeninsula','spotTST','spotTSTClock','spotTSTCulture','spotTSTMuseums']){assert.ok(html.includes(`id="${id}"`));assert.ok(s.includes(`['${id}',`))}
  assert.ok(html.indexOf('src="tst-waterfront.js')<html.indexOf('src="game.js'));
 });
 console.log('TST vertices:',context.builder.a.length/15,'collision bounds:',bounds.length+context.boxes.length);
