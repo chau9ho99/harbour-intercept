@@ -205,17 +205,20 @@ if(type>19.5&&type<20.5){base=vec3(.06,.12,.15);rough=.08;metal=.5;glass=.8;}
 if(water>.5){
  vec2 p=wp.xz;float dist=length(eye-wp);vec3 wave=oceanWave(p,time);
  float rippleFade=1.-smoothstep(250.,2600.,dist);
- vec2 ripple=vec2(cos(dot(p,vec2(.49,.27))-time*2.1),cos(dot(p,vec2(-.37,.58))+time*1.8))*.075;
- if(environmentHigh)ripple+=vec2(sin(p.x*1.7+p.y*.8-time*3.1),cos(p.y*1.9-p.x*.6-time*2.7))*.024*(1.-smoothstep(60.,650.,dist));
- N=normalize(vec3(-wave.y+ripple.x*rippleFade,1.,-wave.z+ripple.y*rippleFade));
  float seaPatch=weatherNoise(p*.003+vec2(time*.0007,-time*.0003));
+ vec2 phase=p+vec2(13.*seaPatch,9.*weatherNoise(p*.005+vec2(.31,.14)));
+ float wind=dot(phase,vec2(.37,.16))-time*1.7;
+ float crosswind=dot(phase,vec2(.19,-.41))+time*1.24;
+ vec2 ripple=.055*(vec2(.91,.4)*cos(wind)*(1.-smoothstep(.5,2.4,fwidth(wind)))+
+                      vec2(.42,-.91)*cos(crosswind)*(1.-smoothstep(.5,2.4,fwidth(crosswind))));
+ N=normalize(vec3(-wave.y+ripple.x*rippleFade,1.,-wave.z+ripple.y*rippleFade));
  float crest=smoothstep(.38,.69,wave.x)*smoothstep(.54,.77,seaPatch);
  float south=-630.-55.*sin(p.x*.0011)-25.*sin(p.x*.0029),north=tstShore(p.x);
  float shoreDistance=min(abs(p.y-south),abs(p.y-north));
  float coastMask=1.-smoothstep(5300.,5400.,abs(p.x));
  float wash=(.5+.5*sin(shoreDistance*1.4-time*1.7+seaPatch*4.));
  float shoreFoam=(1.-smoothstep(1.,9.,shoreDistance))*smoothstep(.30,.64,seaPatch+wash*.28)*coastMask;
- seaFoam=clamp(crest*.70+shoreFoam*.82,0.,.88);
+ seaFoam=clamp(crest*.16+shoreFoam*.32*smoothstep(.42,.68,seaPatch),0.,.88);
  // Derivative-based slope variance broadens distant highlights instead of sparkling.
  float slopeVariance=dot(dFdx(N),dFdx(N))+dot(dFdy(N),dFdy(N));
  rough=clamp(sqrt(.16*.16+min(slopeVariance*.6,.10)),.16,.36);metal=0.;

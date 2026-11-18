@@ -51,25 +51,48 @@ globalThis.HarbourTST={
  for(let j=0;j<24;j++){let a=j*Math.PI/12,c=(j+1)*Math.PI/12;b.tri([tx,52.4,tz],[tx+Math.cos(a)*6,49.7,tz+Math.sin(a)*6],[tx+Math.cos(c)*6,49.7,tz+Math.sin(c)*6],[.14,.23,.17],masonry);}
  rod([tx,52.4,tz],[tx,59.4,tz],.12);landmark('尖沙咀鐘樓',[tx,60,tz],44);
  setScale(652,1190,.85,.78,.85);offset=[-72,0,-115];
- // Cultural Centre: broad pale-pink, windowless curved shells with segmented roofs.
- box(652,8.4,1190,245,12,135,pink);
- for(let wing=0;wing<2;wing++){
-  let x0=533+wing*119;
-  for(let i=0;i<24;i++){
-   let xa=x0+i*4.8,xb=xa+4.8,u=i/24,v=(i+1)/24;
-   let ya=23+34*Math.pow(1-u,1.55),yb=23+34*Math.pow(1-v,1.55);
-   b.quad([xa,ya,1122],[xa,ya,1258],[xb,yb,1258],[xb,yb,1122],pink,masonry);
-   b.quad([xa,20.4,1122],[xa,ya,1122],[xb,yb,1122],[xb,20.4,1122],pink,masonry);
-   b.quad([xb,20.4,1258],[xb,yb,1258],[xa,ya,1258],[xa,20.4,1258],pink,masonry);
-   bounds(xa+2.4,1190,4.8,Math.max(ya,yb)-20.4,136,20.4);stats.roofStrips++;
+ // Concave roof between two raised ends. The front wall bends inland
+ // over a recessed arcade instead of spanning the plaza with a solid plinth.
+ const section = u => {
+  const end = Math.abs(2*u-1);
+  return {x:533+232*u, y:28+28*end*end, front:1122+38*(1-end*end)};
+ };
+ box(649,8.16,1187,235,.25,145,stone,paving);
+ box(649,8.4,1209,232,12,96,[.31,.28,.26]);
+ for(let i=0;i<48;i++){
+  const a=section(i/48), c=section((i+1)/48);
+  const fascia=[.56,.39,.33], roof=[.39,.33,.30];
+  b.quad([a.x,a.y,a.front],[a.x,a.y,1258],[c.x,c.y,1258],[c.x,c.y,c.front],roof,masonry);
+  b.quad([a.x,20.4,a.front],[a.x,a.y,a.front],[c.x,c.y,c.front],[c.x,20.4,c.front],fascia,masonry);
+  b.quad([c.x,20.4,1258],[c.x,c.y,1258],[a.x,a.y,1258],[a.x,20.4,1258],fascia,masonry);
+  rod([a.x,a.y+.12,a.front],[c.x,c.y+.12,c.front],.25,stone);
+  if(i%3===0){
+   rod([a.x,8.4,a.front+1],[c.x,20.4,c.front],.64,fascia);
+   rod([a.x,a.y+.15,a.front],[a.x,a.y+.15,1258],.075,stone);
   }
+  const front=Math.min(a.front,c.front);
+  bounds((a.x+c.x)/2,(1258+front)/2,c.x-a.x,Math.max(a.y,c.y)-20.4,1258-front,20.4);
+  stats.roofStrips++;
  }
- for(let wing=0;wing<2;wing++)for(let edge of [0,1]){let x=533+wing*119+edge*115.2,y=edge?23:57;let pts=[[x,20.4,1122],[x,y,1122],[x,y,1258],[x,20.4,1258]];if(edge)pts.reverse();b.quad(...pts,pink,masonry);}
+ for(const u of [0,1]){
+  const {x,y,front}=section(u);
+  const cap=[[x,20.4,front],[x,y,front],[x,y,1258],[x,20.4,1258]];
+  if(!u)cap.reverse();
+  b.quad(...cap,pink,masonry);
+ }
  setScale(0,0,1,1,1);
  // Compact civic forecourt: pale paving, reflecting pool and palm-lined paths.
  box(520,8.15,982,180,.25,65,[.46,.40,.32],paving);
  box(457,8.45,1008,10,.28,45);box(457,8.74,1008,8,.05,42,[.08,.17,.16],[.2,.1,0,4]);
- for(let x=480;x<650;x+=20)palm(x,994);
+ for(let x=480;x<650;x+=20){
+  palm(x,994);
+  box(x,8.5,994,4,.42,3,stone);
+  box(x,8.94,994,3.5,.15,2.5,[.13,.21,.11]);
+ }
+ for(let x=442;x<=490;x+=12){
+  rod([x,8.4,1038],[x,13.1,1038],.12);
+  box(x,13.1,1038,.85,.46,.85,[.72,.65,.46]);
+ }
  landmark('香港文化中心',[580,49,1075],40);
  setScale(900,1100,.82,1,.85);offset=[-105,0,-80];
  // Hong Kong Museum of Art: low horizontal volumes, recessed glazing and pale fins.
