@@ -1,8 +1,8 @@
 'use strict';
 // Reference-led first waterfront pass. Coordinates fit the game's interpreted harbour.
 globalThis.HarbourTST={
- reserved(x,z,w=0,d=0){return x+w/2>260&&x-w/2<1450&&z+d/2>900&&z-d/2<1650;},
- shore(x){const pts=[[180,1120],[300,1080],[420,985],[540,930],[700,930],[820,950],[980,950],[1100,925],[1270,955],[1450,1020],[1600,1005]];if(x<180||x>1600)return 930+80*Math.sin(x*.0008+.5);for(let i=1;i<pts.length;i++)if(x<=pts[i][0]){let a=pts[i-1],b=pts[i];return a[1]+(b[1]-a[1])*(x-a[0])/(b[0]-a[0]);}},
+ reserved(x,z,w=0,d=0){return x+w/2>80&&x-w/2<1450&&z+d/2>900&&z-d/2<1770;},
+ shore(x){const pts=[[-700,945.2036561],[-550,1240],[-300,1240],[80,1240],[180,1120],[300,1080],[420,985],[540,930],[700,930],[820,950],[980,950],[1100,925],[1270,955],[1450,1020],[1600,1005]];if(x<-700||x>1600)return 930+80*Math.sin(x*.0008+.5);for(let i=1;i<pts.length;i++)if(x<=pts[i][0]){let a=pts[i-1],b=pts[i];return a[1]+(b[1]-a[1])*(x-a[0])/(b[0]-a[0]);}},
  build({world:world,northshore,landmark:label,bounds:solid}){
  // Each landmark uses an explicit metre-like local scale around its footprint centre.
  let origin=[0,8.4,0],scale=[1,1,1],offset=[0,0,0];
@@ -18,7 +18,7 @@ globalThis.HarbourTST={
  const masonry=[.82,.06,0,0],steel=[.38,.65,0,0],glass=[.23,.08,0,1],paving=[.88,.03,0,18];
  const box=(x,y,z,w,h,d,c=stone,m=masonry)=>b.box(x,y,z,w,h,d,c,m);
  const rod=(a,c,r=.10,color=metal)=>b.rod(a,c,r,color,steel);
- const stats={clockFaces:0,roofStrips:0,railPosts:0,benches:0,palms:0,landmarks:7};
+ const stats={clockFaces:0,roofStrips:0,railPosts:0,benches:0,palms:0,landmarks:11};
  function disc(x,y,z,r,c,vertical=false){for(let i=0;i<32;i++){let a=i*Math.PI/16,t=(i+1)*Math.PI/16;let pt=q=>vertical?[x+Math.cos(q)*r,y+Math.sin(q)*r,z]:[x+Math.cos(q)*r,y,z+Math.sin(q)*r];b.tri([x,y,z],pt(t),pt(a),c,masonry);}}
  function palm(x,z){rod([x,8.5,z],[x+.35,16.5,z],.20,[.26,.20,.13]);for(let j=0;j<8;j++){let a=j*Math.PI/4;let tip=[x+Math.cos(a)*3.4,15.2,z+Math.sin(a)*3.4];b.tri([x+.35,16.5,z],[tip[0]+.7,tip[1],tip[2]], [tip[0]-.7,tip[1]-.2,tip[2]],[.10,.19,.10],masonry);}stats.palms++;}
  // Continuous public waterfront and paired handrails follow the existing north bank.
@@ -162,7 +162,57 @@ globalThis.HarbourTST={
   let h=32+((Math.round(x)*17+z)%57);block(x,z,48,76,h,[.36+(x%3)*.035,.34,.29]);
   for(let y=12;y<8+h;y+=7)box(x,y,z-38.2,48,.3,.5,stone);
  }
- stats.layoutRevision=58;stats.scaleRevision=57;stats.benchLength=2;stats.railingSpacing=2.5;
+  // V59: Harbour City is a connected north/south spine with a westward Ocean Terminal.
+ // Dimensions are authored estimates from official layout diagrams, not surveyed footprints.
+ setScale(0,0,1,1,1);
+ const hcStone=[.49,.46,.39],hcGlass=[.07,.14,.18],hcMetal=[.44,.48,.48];
+ function hcMass(x,z,w,d,h){box(x,8.4,z,w,h,d,hcStone,masonry);bounds(x,z,w,h,d,8.4);}
+ function ribbon(x,z,w,y){box(x,y,z,w,2.7,.25,hcGlass,glass);box(x,y+2.7,z,w,.22,.6,hcMetal,steel);}
+ // Seaward terminal deck connects to the landward shopping spine, leaving water below.
+ box(-35,5,1165,520,3.4,100,[.22,.25,.25]);bounds(-35,1165,520,3.4,100,5);
+ for(let x=-275;x<220;x+=24)for(let z of [1123,1207])box(x,-1,z,1.8,6,1.8,[.16,.19,.18]);
+ hcMass(-5,1165,440,80,15);
+ for(let y of [10,15,20])for(let z of [1124.7,1205.3])ribbon(-5,z,438,y);
+ // Roof carpark: parapets, ramp and restrained parking bays establish the broad low roof.
+ box(-5,23.45,1165,440,.12,79,[.15,.17,.17]);
+ for(let z of [1126,1204])box(-5,23.6,z,440,.8,.25,hcStone);
+ for(let x=-210;x<205;x+=8){box(x,23.6,1136,.10,.02,12,[.66,.64,.54]);box(x,23.6,1194,.10,.02,12,[.66,.64,.54]);}
+ // The terminal's western end has stacked public viewing terraces facing the harbour.
+ for(let level=0;level<5;level++){
+  let y=8.4+level*3.5,w=63-level*5;
+  box(-255,y,1165,w,.55,94-level*4,[.58,.57,.51]);
+  if(level<4){box(-247,y+.55,1165,42,2.95,70,hcGlass,glass);}
+  for(let z of [1120+level*2,1210-level*2]){rod([-255-w/2,y+1.65,z],[-255+w/2,y+1.65,z],.055);}
+ }
+ landmark('海運大廈 · 海運觀點',[-255,29,1165],21);
+ // Canton Road stays on the east side of the mall, connected to the ferry interchange.
+ box(275,8.2,1450,22,.15,620,[.065,.07,.07]);
+ for(let x of [259,291])box(x,8.35,1450,8,.2,620,[.36,.34,.29],paving);
+ for(let z=1160;z<1760;z+=16)box(275,8.4,z,.15,.02,7,[.7,.65,.5]);
+ // Star House at the south end: podium plus a broad, horizontally banded office slab.
+ hcMass(222,1090,63,74,10);hcMass(222,1096,52,53,49);
+ for(let y=20;y<55;y+=3.6)ribbon(222,1069.3,52,y);
+ landmark('星光行',[222,61,1096],49);
+ // Marco Polo / Ocean Centre, followed by the long Gateway Arcade to the north.
+ hcMass(170,1250,150,100,16);hcMass(150,1256,95,65,56);
+ for(let y=28;y<62;y+=3.5)ribbon(150,1223.3,95,y);
+ hcMass(170,1370,150,130,22);
+ hcMass(170,1580,150,280,19);
+ for(let z=1320;z<1715;z+=12){box(245.3,10.5,z,.3,5.5,8,hcGlass,glass);box(245.6,16,z,.8,.35,10,hcStone);}
+ for(let [x,z,w,d,h] of [[145,1510,49,47,115],[204,1510,42,47,103],[145,1660,48,48,134],[204,1660,42,48,119]]){
+  hcMass(x,z,w,d,h);
+  for(let y=29;y<8+h;y+=4)ribbon(x,z-d/2-.2,w,y);
+  box(x,8.4+h,z,w+2,1.4,d+2,hcMetal,steel);
+ }
+ landmark('海港城 · 海洋中心',[170,37,1370],28);landmark('港威大廈',[145,145,1660],134);
+ // Connected covered approaches to Star Ferry and boarding edges/fenders at the pier.
+ box(300,8.4,1112,48,.3,8,[.4,.38,.31],paving);
+ for(let x=280;x<=320;x+=8){box(x,8.7,1112,.25,3,.25,hcMetal);box(x,11.7,1112,8,.2,8,[.15,.26,.20]);}
+ const ferryZ=northshore(345)-30;
+ for(let side of [-1,1])for(let z=ferryZ-44;z<ferryZ+40;z+=9){box(345+side*19,3,z,.6,4,1.4,[.045,.05,.045]);rod([345+side*17.5,8,z],[345+side*17.5,9.1,z],.07);}
+ stats.harbourCity={terminalWest:-286.5,terminalEast:225,cantonRoadX:275,landmarks:4};
+
+ stats.layoutRevision=59;stats.scaleRevision=57;stats.benchLength=2;stats.railingSpacing=2.5;
  return stats;
  }
 };
