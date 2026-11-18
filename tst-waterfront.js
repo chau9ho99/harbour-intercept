@@ -191,11 +191,33 @@ globalThis.HarbourTST={
  const hcStone=[.49,.46,.39],hcGlass=[.07,.14,.18],hcMetal=[.44,.48,.48];
  function hcMass(x,z,w,d,h){box(x,8.4,z,w,h,d,hcStone,masonry);bounds(x,z,w,h,d,8.4);}
  function ribbon(x,z,w,y){box(x,y,z,w,2.7,.25,hcGlass,glass);box(x,y+2.7,z,w,.22,.6,hcMetal,steel);}
+ // Glazing stops short of corners, leaving stone piers visible at oblique angles.
+ function floorBands(x,z,width,depth,first,top,pitch,tint){
+  const pane=[.24,.24,0,0];
+  for(const [nx,nz] of [[0,-1],[1,0],[0,1],[-1,0]]){
+   const span=(nx?depth:width)-3;
+   const faceX=x+nx*(width/2+.06),faceZ=z+nz*(depth/2+.06);
+   const bays=Math.ceil(span/24);
+   for(let y=first;y+2.25<top;y+=pitch){
+    for(let bay=0;bay<bays;bay++){
+     const left=span*(bay/bays-.5)+.22,right=span*((bay+1)/bays-.5)-.22;
+     const at=(u,h)=>[faceX+nz*u,h,faceZ-nx*u];
+     b.quad(at(left,y),at(right,y),at(right,y+2.25),at(left,y+2.25),tint,pane);
+    }
+   }
+  }
+ }
  // Seaward terminal deck connects to the landward shopping spine, leaving water below.
  box(-35,5,1165,520,3.4,100,[.22,.25,.25]);bounds(-35,1165,520,3.4,100,5);
  for(let x=-275;x<220;x+=24)for(let z of [1123,1207])box(x,-1,z,1.8,6,1.8,[.16,.19,.18]);
  hcMass(-5,1165,440,80,15);
  for(let y of [10,15,20])for(let z of [1124.7,1205.3])ribbon(-5,z,438,y);
+ // Recessed boarding doors, brows and rubber fenders break up the quay elevation.
+ for(const x of [-173,-92,-11,70,151]){
+  box(x,8.5,1124.4,7.6,4.6,.6,[.085,.12,.12]);
+  box(x,13.1,1123.7,10,.38,2.6,hcStone);
+  for(const dx of [-7,7])box(x+dx,1.4,1114.85,.85,5.6,1,[.043,.047,.05]);
+ }
  // Roof carpark: parapets, ramp and restrained parking bays establish the broad low roof.
  box(-5,23.45,1165,440,.12,79,[.15,.17,.17]);
  for(let z of [1126,1204])box(-5,23.6,z,440,.8,.25,hcStone);
@@ -207,6 +229,14 @@ globalThis.HarbourTST={
   if(level<4){box(-247,y+.55,1165,42,2.95,70,hcGlass,glass);}
   for(let z of [1120+level*2,1210-level*2]){rod([-255-w/2,y+1.65,z],[-255+w/2,y+1.65,z],.055);}
  }
+ // The western lookout has planted roof islands and a continuous seaward rail.
+ const deckY=22.95;
+ for(const dz of [-20,20]){
+  box(-254,deckY,1165+dz,22,.38,9,hcStone);
+  box(-254,deckY+.38,1165+dz,20,.18,7,[.16,.27,.12]);
+ }
+ for(let z=1127;z<=1203;z+=4)rod([-276,deckY,z],[-276,deckY+1.1,z],.055);
+ rod([-276,deckY+1.1,1127],[-276,deckY+1.1,1203],.065);
  landmark('海運大廈 · 海運觀點',[-255,29,1165],21);
  // Canton Road stays on the east side of the mall, connected to the ferry interchange.
  box(275,8.2,1450,22,.15,620,[.065,.07,.07]);
@@ -214,17 +244,21 @@ globalThis.HarbourTST={
  for(let z=1160;z<1760;z+=16)box(275,8.4,z,.15,.02,7,[.7,.65,.5]);
  // Star House at the south end: podium plus a broad, horizontally banded office slab.
  hcMass(222,1090,63,74,10);hcMass(222,1096,52,53,49);
- for(let y=20;y<55;y+=3.6)ribbon(222,1069.3,52,y);
+ floorBands(222,1096,52,53,20,56,3.6,[.13,.18,.19]);
+ box(222,57.4,1099,36,3.1,32,hcStone);
  landmark('星光行',[222,61,1096],49);
  // Marco Polo / Ocean Centre, followed by the long Gateway Arcade to the north.
  hcMass(170,1250,150,100,16);hcMass(150,1256,95,65,56);
- for(let y=28;y<62;y+=3.5)ribbon(150,1223.3,95,y);
+ floorBands(150,1256,95,65,26,64,3.5,[.13,.17,.16]);
+ box(150,64.4,1258,73,3,45,hcStone);
  hcMass(170,1370,150,130,22);
  hcMass(170,1580,150,280,19);
  for(let z=1320;z<1715;z+=12){box(245.3,10.5,z,.3,5.5,8,hcGlass,glass);box(245.6,16,z,.8,.35,10,hcStone);}
  for(let [x,z,w,d,h] of [[145,1510,49,47,115],[204,1510,42,47,103],[145,1660,48,48,134],[204,1660,42,48,119]]){
   hcMass(x,z,w,d,h);
-  for(let y=29;y<8+h;y+=4)ribbon(x,z-d/2-.2,w,y);
+  floorBands(x,z,w,d,29,8+h,4,[.09,.17,.20]);
+  for(let side of [-1,1])box(x+side*(w/2-.8),28,z,1.6,h-20,d+1,hcStone);
+  box(x,9.8+h,z,w*.72,3,d*.68,hcStone);
   box(x,8.4+h,z,w+2,1.4,d+2,hcMetal,steel);
  }
  landmark('海港城 · 海洋中心',[170,37,1370],28);landmark('港威大廈',[145,145,1660],134);
