@@ -18,7 +18,7 @@ globalThis.HarbourTST={
  const masonry=[.82,.06,0,0],steel=[.38,.65,0,0],glass=[.23,.08,0,1],paving=[.88,.03,0,18];
  const box=(x,y,z,w,h,d,c=stone,m=masonry)=>b.box(x,y,z,w,h,d,c,m);
  const rod=(a,c,r=.10,color=metal)=>b.rod(a,c,r,color,steel);
- const stats={clockFaces:0,roofStrips:0,railPosts:0,benches:0,palms:0,landmarks:11};
+ const stats={clockFaces:0,roofStrips:0,railPosts:0,benches:0,palms:0,landmarks:12};
  function disc(x,y,z,r,c,vertical=false){for(let i=0;i<32;i++){let a=i*Math.PI/16,t=(i+1)*Math.PI/16;let pt=q=>vertical?[x+Math.cos(q)*r,y+Math.sin(q)*r,z]:[x+Math.cos(q)*r,y,z+Math.sin(q)*r];b.tri([x,y,z],pt(t),pt(a),c,masonry);}}
  function palm(x,z){rod([x,8.5,z],[x+.35,16.5,z],.20,[.26,.20,.13]);for(let j=0;j<8;j++){let a=j*Math.PI/4;let tip=[x+Math.cos(a)*3.4,15.2,z+Math.sin(a)*3.4];b.tri([x+.35,16.5,z],[tip[0]+.7,tip[1],tip[2]], [tip[0]-.7,tip[1]-.2,tip[2]],[.10,.19,.10],masonry);}stats.palms++;}
  // Continuous public waterfront and paired handrails follow the existing north bank.
@@ -173,10 +173,56 @@ globalThis.HarbourTST={
  block(1030,1015,82,58,53,[.40,.34,.26]);
  block(900,1308,100,98,67,[.38,.32,.25]);
  block(585,1290,100,72,58,[.49,.43,.32]);
- // 1881 Heritage terraced court west of the Peninsula, with arcaded low wings.
- box(440,8.25,1280,130,.3,95,[.43,.39,.31],paving);
- block(440,1300,92,25,17,[.64,.58,.45]);
- for(let x of [395,485])block(x,1274,20,46,14,[.64,.58,.45]);
+ // 1881 Heritage, adapted to the game's Canton Road plot. The former
+ // Marine Police HQ sits above the retail court, looking south over its verandahs.
+ const render=[.70,.63,.48], roofTile=[.19,.20,.19], terrace=[.50,.44,.34];
+ function hippedRoof(cx,z,y,w,d,rise){
+  const l=cx-w/2,r=cx+w/2,f=z-d/2,k=z+d/2;
+  const a=[l+d/2,y+rise,z],c=[r-d/2,y+rise,z];
+  b.quad([l,y,f],a,c,[r,y,f],roofTile,masonry);
+  b.quad([r,y,k],c,a,[l,y,k],roofTile,masonry);
+  b.tri([l,y,k],a,[l,y,f],roofTile,masonry);
+  b.tri([r,y,f],c,[r,y,k],roofTile,masonry);
+ }
+ box(440,8.25,1280,130,.3,95,terrace,paving);
+ box(440,8.55,1300,122,7,53,terrace);
+ bounds(440,1300,122,7,53,8.55);
+ for(let i=0;i<9;i++)box(440,8.55,1257+i*1.94,21,(i+1)*7/9,2,render);
+ box(440,15.55,1303,84,12.6,18,render);
+ bounds(440,1303,84,16.8,24,15.55);
+ hippedRoof(440,1300,28.15,88,27,4.2);
+ // Open double verandah. A segmented arch leaves a genuine gap in each bay.
+ for(const floor of [15.55,21.85]){
+  box(440,floor,1291,85,.45,6,render);
+  for(let bay=0;bay<12;bay++){
+   const x=398+bay*7,front=1288;
+   box(x+.35,floor,front,.7,6.3,.8,render);
+   b.quad([x+2.1,floor+.6,1293.95],[x+2.1,floor+4.6,1293.95],
+     [x+4.9,floor+4.6,1293.95],[x+4.9,floor+.6,1293.95],[.16,.23,.18],masonry);
+   for(let j=0;j<4;j++){
+    const edge=n=>[x+3.65-3*Math.cos(n*Math.PI/4),floor+3.8+1.7*Math.sin(n*Math.PI/4),front];
+    const a=edge(j),c=edge(j+1);
+    b.quad(a,[a[0],floor+6.3,front],[c[0],floor+6.3,front],c,render,masonry);
+   }
+  }
+  box(482,floor,1288,.7,6.3,.8,render);
+ }
+ box(480,15.55,1281,32,5,11,[.45,.29,.21]);
+ hippedRoof(480,1281,20.55,34,13,2.8);
+ // The round time-ball tower on its own raised terrace near the street corner.
+ function drum(x,z,y,r0,r1,h,colour){
+  for(let i=0;i<16;i++){
+   const ring=(j,r,level)=>[x+r*Math.cos(j*Math.PI/8),level,z+r*Math.sin(j*Math.PI/8)];
+   b.quad(ring(i,r0,y),ring(i,r1,y+h),ring(i+1,r1,y+h),ring(i+1,r0,y),colour,masonry);
+  }
+ }
+ drum(394,1261,8.55,15,15,5,terrace);disc(394,13.55,1261,15,terrace);
+ drum(394,1261,13.55,5.2,5.2,8.4,render);
+ drum(394,1261,21.95,6,1,3.8,roofTile);
+ rod([394,25.7,1261],[394,33,1261],.24,dark);
+ drum(394,1261,28.5,.35,1.35,1,dark);drum(394,1261,29.5,1.35,.35,1,dark);
+ bounds(394,1261,10,17,10,8.55);
+ landmark('1881 Heritage · 前水警總部',[440,34,1300],26);
  // The strip immediately north of the hotels: narrower side streets flank Nathan Road.
  const avenueX=820;
  const asphalt=[.065,.069,.071], kerb=[.41,.38,.34];
