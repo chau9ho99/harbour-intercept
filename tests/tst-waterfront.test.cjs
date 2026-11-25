@@ -15,8 +15,8 @@ test('authored waterfront reserve excludes generic buildings and roads',()=>{ass
 test('study camera names, view indices and buttons stay aligned',()=>{
  const start=s.indexOf('let views=')+'let views='.length,end=s.indexOf(';if(studyView===50)',start);
  const views=vm.runInNewContext(s.slice(start,end),{streetSamples:[[0,0,0,0]],shoreline:()=>-630});
- assert.equal(views.length,61);assert.equal(views[50],null);assert.equal(views[51][0][2],670);
- const html=fs.readFileSync('index.html','utf8');for(const id of ['spot1881','spotInland','spotK11','spotPeninsula','spotTST','spotTSTClock','spotTSTCulture','spotTSTMuseums']){assert.ok(html.includes(`id="${id}"`));assert.ok(s.includes(`['${id}',`))}
+ assert.equal(views.length,63);assert.equal(views[50],null);assert.equal(views[51][0][2],670);
+ const html=fs.readFileSync('index.html','utf8');for(const id of ['spotFerryBoat','spotBusTerminus','spot1881','spotInland','spotK11','spotPeninsula','spotTST','spotTSTClock','spotTSTCulture','spotTSTMuseums']){assert.ok(html.includes(`id="${id}"`));assert.ok(s.includes(`['${id}',`))}
  assert.ok(html.indexOf('src="tst-waterfront.js')<html.indexOf('src="game.js'));
 });
 console.log('TST vertices:',context.builder.a.length/15,'collision bounds:',bounds.length+context.boxes.length);
@@ -26,3 +26,27 @@ test('K11 remains east of museums and Peninsula court is open',()=>{assert.ok(la
 test('mapped landmark adjacency closes oversized waterfront gaps',()=>{const get=n=>landmarks.find(l=>l[0]===n)[1];assert.ok(get('半島酒店')[2]-get('香港太空館')[2]<220);assert.ok(get('香港太空館')[2]>get('香港藝術館')[2]);assert.ok(get('香港藝術館')[0]>get('香港文化中心')[0]);assert.ok(context.HarbourTST.shore(540)<context.HarbourTST.shore(300));});
 
 test('Ocean Terminal extends west of landward mall and Canton Road',()=>{assert.ok(stats.harbourCity.terminalWest<0);assert.ok(stats.harbourCity.terminalEast<stats.harbourCity.cantonRoadX);assert.ok(context.HarbourTST.shore(-255)>1215);assert.ok(context.HarbourTST.reserved(145,1660,48,48));});
+
+test('ferries wait alongside both piers and reverse without turning the hull',()=>{
+ const state=vm.runInContext(s.slice(s.indexOf('function ferryState'),s.indexOf('const roadMeshes'))+';ferryState',context);
+ for(const i of [0,1]){
+  const start=i?297:0, dock=state(i,start), far=state(i,start+198);
+  assert.equal(dock.wake,0);assert.equal(far.wake,0);
+  assert.ok(dock.pos[2]>980 && far.pos[2]<-400);
+  const outbound=state(i,start+18+90),inbound=state(i,start+198+18+90);
+  assert.deepEqual(outbound.pos,inbound.pos);assert.equal(outbound.yaw,inbound.yaw);
+  assert.ok(Math.abs(inbound.wakeYaw-outbound.wakeYaw-Math.PI)<1e-8);
+ }
+});
+test('moving bus waits at its bay and clears the covered boarding islands',()=>{
+ const state=vm.runInNewContext(s.slice(s.indexOf('function terminusBus'),s.indexOf('function drawHarbourTraffic'))+';terminusBus');
+ assert.deepEqual(state(0).pos,state(12).pos);
+ for(let t=0;t<83;t+=.25){
+  const {pos:[x,,z],yaw}=state(t);
+  for(const end of [-6,0,6]){
+   const xx=x+end*Math.cos(yaw),zz=z-end*Math.sin(yaw);
+   assert.ok(xx>290 && xx<410 && zz>1102 && zz<1198);
+   if(zz>=1115 && zz<=1185)assert.ok([315,345,375].every(island=>Math.abs(xx-island)>3.8));
+  }
+ }
+});
