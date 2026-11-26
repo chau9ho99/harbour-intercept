@@ -18,14 +18,25 @@ globalThis.HarbourTST={
  const masonry=[.82,.06,0,0],steel=[.38,.65,0,0],glass=[.23,.08,0,1],paving=[.88,.03,0,18];
  const box=(x,y,z,w,h,d,c=stone,m=masonry)=>b.box(x,y,z,w,h,d,c,m);
  const rod=(a,c,r=.10,color=metal)=>b.rod(a,c,r,color,steel);
- const stats={clockFaces:0,roofStrips:0,railPosts:0,benches:0,palms:0,landmarks:12};
+ const stats={clockFaces:0,roofStrips:0,railPosts:0,benches:0,palms:0,landmarks:15};
  function disc(x,y,z,r,c,vertical=false){for(let i=0;i<32;i++){let a=i*Math.PI/16,t=(i+1)*Math.PI/16;let pt=q=>vertical?[x+Math.cos(q)*r,y+Math.sin(q)*r,z]:[x+Math.cos(q)*r,y,z+Math.sin(q)*r];b.tri([x,y,z],pt(t),pt(a),c,masonry);}}
  function palm(x,z){rod([x,8.5,z],[x+.35,16.5,z],.20,[.26,.20,.13]);for(let j=0;j<8;j++){let a=j*Math.PI/4;let tip=[x+Math.cos(a)*3.4,15.2,z+Math.sin(a)*3.4];b.tri([x+.35,16.5,z],[tip[0]+.7,tip[1],tip[2]], [tip[0]-.7,tip[1]-.2,tip[2]],[.10,.19,.10],masonry);}stats.palms++;}
  // Continuous public waterfront and paired handrails follow the existing north bank.
- for(let x=280;x<1450;x+=30){let z=northshore(x);box(x+15,8.1,z+10,30,.3,18,[.34,.31,.26],paving);
-  for(let dx=0;dx<30;dx+=2.5){let zz=northshore(x+dx)+2;rod([x+dx,8.4,zz],[x+dx,9.6,zz]);stats.railPosts++;}
-  for(let y of [8.9,9.6])rod([x,y,z+2],[x+30,y,northshore(x+30)+2]);
-  if(x%90===10){box(x+10,8.4,z+12,2,.45,.6,[.24,.15,.085]);box(x+10,8.85,z+12.3,2,.4,.10,[.24,.15,.085]);stats.benches++;palm(x+22,z+15);}
+ // Sample the same seawall curve at both ends of each paving bay.
+ for(let x=280;x<1450;x+=10){
+  const z=northshore(x),next=northshore(x+10);
+  for(const [near,far,c] of [[.35,2,[.60,.54,.44]],[2,13,[.43,.39,.34]],[13,19,[.50,.46,.39]]]){
+   b.quad([x,8.31,z+near],[x,8.31,z+far],[x+10,8.31,next+far],[x+10,8.31,next+near],c,paving);
+  }
+  // Two crossed blades give slender posts a readable profile in both directions.
+  for(let dx=0;dx<10;dx+=2.5){
+   const px=x+dx,pz=northshore(px)+2;
+   b.quad([px-.09,8.3,pz],[px-.09,9.6,pz],[px+.09,9.6,pz],[px+.09,8.3,pz],metal,steel);
+   b.quad([px,8.3,pz-.09],[px,8.3,pz+.09],[px,9.6,pz+.09],[px,9.6,pz-.09],metal,steel);
+   stats.railPosts++;
+  }
+  for(const y of [8.9,9.6])b.quad([x,y,z+2],[x,y+.12,z+2],[x+10,y+.12,next+2],[x+10,y,next+2],metal,steel);
+  if(x%90===10){box(x+4,8.4,z+12,2,.45,.6,[.24,.15,.085]);box(x+4,8.85,z+12.3,2,.4,.10,[.24,.15,.085]);stats.benches++;palm(x+7,northshore(x+7)+15);}
  }
  // Star Ferry: piled landing, two levels, open bays and green pitched roofs.
  const px=345,pz=northshore(px)-30;setScale(px,pz,.55,.70,.72);
@@ -168,6 +179,80 @@ globalThis.HarbourTST={
  for(let x=1070;x<1350;x+=35){box(x,8.6,1048,7,.6,3,limestone);box(x,9.2,1048,6.5,.7,2.5,leaf);}
  landmark('K11 MUSEA',[1205,55,1138],43);
  setScale(0,0,1,1,1);
+ // Paved forecourt between the retail frontage and the Avenue of Stars.
+ // The promenade widens toward the centre, narrowing again near the tower.
+ for(let x=1070;x<1300;x+=10){
+  const edge=side=>northshore(side)+19;
+  const bed=side=>edge(side)+7+4*Math.sin((side-1070)/230*Math.PI);
+  const ribbon=(near,far,y,c)=>b.quad([x,y,near(x)],[x,y,far(x)],
+    [x+10,y,far(x+10)],[x+10,y,near(x+10)],c,paving);
+  ribbon(edge,()=>1002,8.29,[.49,.45,.38]);
+  if((x-1070)%50<30)ribbon(bed,u=>bed(u)+3.5,8.36,[.19,.27,.14]);
+ }
+ // Victoria Dockside: separate volumes and a clear slot of sky between them.
+ // Dimensions are interpreted to fit the harbour model.
+ const pierStone=[.51,.45,.36],towerGlass=[.14,.23,.24],towerSkin=[.29,.34,0,6];
+ function docksideTier(x,z,y,w,d,h){
+  box(x,y,z,w,h,d,towerGlass,towerSkin);
+  bounds(x,z,w,h,d,y);
+  for(let dx=-w/2+2;dx<w/2;dx+=6){
+   const f=z-d/2-.15;
+   b.quad([x+dx,y,f],[x+dx,y+h,f],[x+dx+1.45,y+h,f],[x+dx+1.45,y,f],pierStone,masonry);
+  }
+  for(let dz=-d/2+2;dz<d/2;dz+=6){
+   const side=x+w/2+.15;
+   b.quad([side,y,z+dz],[side,y+h,z+dz],[side,y+h,z+dz+1.4],[side,y,z+dz+1.4],pierStone,masonry);
+  }
+  box(x,y+h,z,w+1,.6,d+1,pierStone);
+ }
+ for(const x of [1298,1320,1342,1364])for(const z of [1064,1097]){
+  box(x,8.35,z,4,12,5,pierStone);bounds(x,z,4,12,5,8.35);
+ }
+ docksideTier(1331,1081,20.35,76,46,119);
+ docksideTier(1336,1084,139.95,66,40,56);
+ docksideTier(1342,1086,196.55,54,36,42);
+ landmark('香港瑰麗酒店',[1342,242,1086],230);
+ // K11 ARTUS steps back above the west part of the retail podium.
+ for(let tier=0;tier<4;tier++){
+  const x=1126+2*tier,z=1087+2*tier,y=51.4+tier*11,w=85-tier*7,d=46-tier*4;
+  box(x,y,z,w,11,d,[.28,.29,.24],towerSkin);bounds(x,z,w,11,d,y);
+  for(let floor=0;floor<3;floor++)box(x,y+floor*3.55,z-1,w+3,.65,d+4,pierStone);
+  box(x,y+10.2,z-d/2,w,1,2,leaf);
+ }
+ landmark('K11 ARTUS',[1132,98,1093],87);
+ // Signal Hill rises behind Salisbury Road. One height function drives the
+ // tessellated ground, collision samples and the tree roots.
+ const hillX=1147,hillZ=1312;
+ function signalGround(x,z){
+  const dx=(x-hillX)/86,dz=(z-hillZ)/62,r=dx*dx+dz*dz;
+  return 8.08+31*Math.max(0,1-r)**1.4;
+ }
+ for(let x=hillX-90;x<hillX+90;x+=10)for(let z=hillZ-65;z<hillZ+65;z+=10){
+  const corners=[[x,z],[x,z+10],[x+10,z+10],[x+10,z]].map(([u,v])=>[u,signalGround(u,v),v]);
+  const height=signalGround(x+5,z+5)-8.08;
+  if(height<.01&&corners.every(p=>p[1]<=8.08))continue;
+  b.quad(...corners,height>9?[.18,.26,.14]:[.26,.29,.18],masonry);
+  if(height>.1)bounds(x+5,z+5,10,height,10,8.08);
+ }
+ for(let j=0;j<54;j++){
+  const a=j*2.4,r=.30+.65*Math.sqrt(j/54),x=hillX+81*r*Math.cos(a),z=hillZ+57*r*Math.sin(a);
+  const y=signalGround(x,z),radius=4+j%4,top=[x+1,y+7+j%5,z],bottom=[x,y+.5,z];
+  const canopy=[.095+j%3*.025,.18+j%5*.012,.09];
+  for(let k=0;k<6;k++){
+   const edge=n=>[x+radius*Math.cos(n*Math.PI/3),y+4,z+radius*Math.sin(n*Math.PI/3)];
+   b.tri(edge(k),top,edge(k+1),canopy,masonry);
+   b.tri(edge(k+1),bottom,edge(k),canopy,masonry);
+  }
+ }
+ const summit=signalGround(hillX,hillZ);
+ box(hillX,summit-.5,hillZ,18,.75,16,[.56,.50,.40],paving);
+ box(hillX,summit,hillZ,6.8,16,6.8,brick);
+ for(const h of [4,9,14,16])box(hillX,summit+h,hillZ,7.5,.6,7.5,pierStone);
+ for(const h of [3,8,12])box(hillX,summit+h,hillZ-3.46,1.55,2.1,.15,dark);
+ box(hillX,summit+16.6,hillZ,5.4,2.6,5.4,brick);
+ rod([hillX,summit+19,hillZ],[hillX,summit+22,hillZ],.12,metal);
+ bounds(hillX,hillZ,7,19,7,summit);
+ landmark('訊號山訊號塔',[hillX,summit+22,hillZ],19);
  // Missing built edges: Regent on the waterfront, Sheraton/ YMCA north of Salisbury Road.
  function block(x,z,w,d,h,c){box(x,8.4,z,w,h,d,c,[.75,.08,0,6]);box(x,8.4+h,z,w+1,1,d+1,stone);}
  block(1030,1015,82,58,53,[.40,.34,.26]);
@@ -260,8 +345,15 @@ globalThis.HarbourTST={
     const height=tall?71+(parcel%4)*9:21+(parcel*11%31);
     const colour=walls[parcel%4];
     box(x,8.67,mid,width,base-8.67,depth-6,colour,masonry);
-    box(x,base,mid+1,width-2*inset,height,buildingDepth,colour,[.76,.08,0,6]);
-    bounds(x,mid+1,width-2*inset,height,buildingDepth,base);
+    const upperWidth=width-2*inset, facadeMat=[.76,.08,0,6];
+    const stepped=tall||parcel%5===0, lowerHeight=stepped?height*.71:height;
+    box(x,base,mid+1,upperWidth,lowerHeight,buildingDepth,colour,facadeMat);
+    bounds(x,mid+1,upperWidth,lowerHeight,buildingDepth,base);
+    if(stepped){
+     const setback=Math.min(5,upperWidth*.2),sign=parcel%2?1:-1;
+     box(x+sign*setback/2,base+lowerHeight,mid+4,upperWidth-setback,height-lowerHeight,buildingDepth-8,colour,facadeMat);
+     bounds(x+sign*setback/2,mid+4,upperWidth-setback,height-lowerHeight,buildingDepth-8,base+lowerHeight);
+    }
     const front=south+2.95;
     b.quad([left+1,9,front],[left+1,12.5,front],[left+width-1,12.5,front],[left+width-1,9,front],
       [.09,.14,.15],[.29,.18,0,0]);
