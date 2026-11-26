@@ -1975,6 +1975,39 @@ function releaseSignature(){
  if(mode==='play')notify(spec.name,1.15);
 }
 $('signature').onclick=releaseSignature;
+const reducedFx=window.matchMedia('(prefers-reduced-motion: reduce)');
+function paintSignatureFx(element,type,u){
+ const blade=type==='falcon',travel=reducedFx.matches ? .5 : u;
+ const sweep=Math.min(1,Math.max(0,(travel-.13)/.52));
+ const ease=1-(1-sweep)**3;
+ const fade=Math.min(1,u/.14,(1-u)/.36);
+ const style=element.style;
+ style.opacity=String(Math.max(0,fade));
+ style.setProperty('--size',String(blade?.30+1.1*ease:.14+1.46*travel));
+ style.setProperty('--cut-x',(42+16*ease)+'%');
+ style.setProperty('--cut-y',(61-22*ease)+'%');
+ style.setProperty('--twist',(blade?-8+11*ease:travel*66)+'deg');
+ style.setProperty('--echo',String(.35*Math.sin(Math.PI*u)**2));
+}
+let previewFrame=0,previewArt=null;
+function closeSignaturePreview(){
+ cancelAnimationFrame(previewFrame);
+ if(previewArt)previewArt.hidden=true;
+ previewArt=null;
+}
+$('previewSignature').onclick=()=>{
+ closeSignaturePreview();
+ const type=aircraftType,start=performance.now();
+ previewArt=document.querySelector('.loadout .signature-art.'+type);
+ previewArt.hidden=false;
+ function advance(now){
+  const u=Math.min(1,(now-start)/1150);
+  if(u>=1||mode!=='menu'||type!==aircraftType){closeSignaturePreview();return;}
+  paintSignatureFx(previewArt,type,u);
+  previewFrame=requestAnimationFrame(advance);
+ }
+ advance(start);
+};
 $('chooseFalcon').onclick=()=>chooseAircraft('falcon');$('chooseViper').onclick=()=>chooseAircraft('viper');
 // Tracking pins an identity; missile lock still requires the aircraft to face that target.
 function toggleTracking(){
@@ -2155,10 +2188,9 @@ if(crash&&(mode==='crash'||mode==='end')&&!paused){let desired=add(player.pos,[M
  if(!signatureFx.hidden){
   const u=1-signatureTime/1.15;
   const pulse=Math.sin(Math.PI*u)**2;
-  signatureFx.className=aircraftType;
-  signatureFx.style.opacity=String(pulse);
-  signatureFx.style.setProperty('--travel',String(u));
-  const zoom=1+.48*pulse;proj[0]*=zoom;proj[5]*=zoom;
+  signatureFx.className='signature-art '+aircraftType;
+  paintSignatureFx(signatureFx,aircraftType,u);
+  const zoom=1+(reducedFx.matches ? .06 : .48)*pulse;proj[0]*=zoom;proj[5]*=zoom;
  }
  view=look(camPos,camTarget);let re=[camPos[0],-camPos[1],camPos[2]],rt=[camTarget[0],-camTarget[1],camTarget[2]];refVP=mm(proj,look(re,rt));gl.bindFramebuffer(gl.FRAMEBUFFER,refF);gl.viewport(0,0,W>>1,H>>1);gl.clearColor(.05,.08,.1,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);drawScene(re,rt,true);
 gl.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.viewport(0,0,W,H);gl.drawBuffers([gl.COLOR_ATTACHMENT0,gl.COLOR_ATTACHMENT1]);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);drawScene(camPos,camTarget,false);

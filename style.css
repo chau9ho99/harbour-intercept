@@ -100,9 +100,15 @@
 #loadoutInfo{font-size:13px;color:#e1ede8;margin:9px 0 12px}
 #signature{position:absolute;pointer-events:auto;left:4%;top:39%;z-index:5;min-height:44px;padding:6px 12px;border:1px solid #b6e9d3;background:#14282ee6;color:#e1fff3;font-size:14px;border-radius:5px}
 #signature:disabled{opacity:.65}
-#signatureFx{position:absolute;inset:0;overflow:hidden;pointer-events:none;background:linear-gradient(0deg,#051119a8,transparent 13% 87%,#051119a8)}
-#signatureFx i{position:absolute;left:50%;top:50%;display:block}
-#signatureFx.falcon i{width:123vmax;height:3px;background:linear-gradient(90deg,transparent,#a981ef 34%,#ffeaff 52%,#8059c4 75%,transparent);box-shadow:0 0 12px #aa73ff;transform:translate(-50%,calc(12vh - var(--travel)*24vh)) rotate(-31deg)}
-#signatureFx.falcon i+i{margin-top:2vh;opacity:.45}
-#signatureFx.viper i{width:85vmin;height:85vmin;border:3px solid #97ffd2;border-radius:50%;box-shadow:0 0 24px #42d290,inset 0 0 17px #42d290;transform:translate(-50%,-50%) scale(calc(.2 + var(--travel)*2))}
-#signatureFx.viper i+i{width:66vmin;height:66vmin;opacity:.6}
+
+.signature-art{position:absolute;inset:0;overflow:hidden;pointer-events:none;isolation:isolate}
+.signature-art[hidden]{display:none}
+.signature-art.falcon{--sprite:url("assets/rift-slash.webp")}
+.signature-art.viper{--sprite:url("assets/jade-halo.webp")}
+.signature-art i{position:absolute;left:50%;top:50%;width:var(--art-size,90vmin);aspect-ratio:1;background:var(--sprite) center/contain no-repeat;transform:translate(-50%,-50%) scale(var(--size,1)) rotate(var(--twist,0deg))}
+.signature-art.falcon i{left:var(--cut-x,50%);top:var(--cut-y,50%)}
+.signature-art.falcon i+i{opacity:var(--echo,0);margin:-1.6% 0 0 -2%;filter:brightness(1.5)}
+.signature-art.viper i+i{opacity:var(--echo,0);transform:translate(-50%,-50%) scale(calc(var(--size,1)*.74)) rotate(calc(-1*var(--twist,0deg)))}
+.loadout #chooseFalcon,.loadout #chooseViper{position:relative;overflow:hidden}
+.loadout .signature-art{bottom:42px;--art-size:min(95%,130px)}
+#previewSignature{display:inline-block;width:auto;min-height:36px;padding:6px 13px;color:#d7f8ef;background:#102825;border:1px solid #789c91;font-size:13px}
