@@ -89,3 +89,20 @@
  .edge-target{width:max-content;max-width:36vw}
  .edge-target small{width:max-content;max-width:100%;white-space:normal;overflow-wrap:normal;word-break:keep-all}
 }
+
+#menu h1{font-size:clamp(28px,4vw,52px);margin:0 0 .3em}
+.loadout>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.loadout button{display:grid;justify-items:start;width:100%;padding:8px 12px;text-align:left;background:linear-gradient(135deg,#27313c,#101820);border:1px solid #62717a}
+.loadout #chooseViper{background:linear-gradient(135deg,#22483c,#10211d)}
+.loadout button.active{outline:2px solid #b1efd9;outline-offset:-2px}
+.loadout canvas{width:100%;height:clamp(56px,12vh,116px);object-fit:contain}
+.loadout strong{color:#fff;font-size:18px}.loadout button small{color:#d1e3dc;font-size:12px}
+#loadoutInfo{font-size:13px;color:#e1ede8;margin:9px 0 12px}
+#signature{position:absolute;pointer-events:auto;left:4%;top:39%;z-index:5;min-height:44px;padding:6px 12px;border:1px solid #b6e9d3;background:#14282ee6;color:#e1fff3;font-size:14px;border-radius:5px}
+#signature:disabled{opacity:.65}
+#signatureFx{position:absolute;inset:0;overflow:hidden;pointer-events:none;background:linear-gradient(0deg,#051119a8,transparent 13% 87%,#051119a8)}
+#signatureFx i{position:absolute;left:50%;top:50%;display:block}
+#signatureFx.falcon i{width:123vmax;height:3px;background:linear-gradient(90deg,transparent,#a981ef 34%,#ffeaff 52%,#8059c4 75%,transparent);box-shadow:0 0 12px #aa73ff;transform:translate(-50%,calc(12vh - var(--travel)*24vh)) rotate(-31deg)}
+#signatureFx.falcon i+i{margin-top:2vh;opacity:.45}
+#signatureFx.viper i{width:85vmin;height:85vmin;border:3px solid #97ffd2;border-radius:50%;box-shadow:0 0 24px #42d290,inset 0 0 17px #42d290;transform:translate(-50%,-50%) scale(calc(.2 + var(--travel)*2))}
+#signatureFx.viper i+i{width:66vmin;height:66vmin;opacity:.6}
