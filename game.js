@@ -2,7 +2,7 @@
 (()=>{const $=id=>document.getElementById(id),canvas=$('gl');let gl;
 try{gl=canvas.getContext('webgl2',{antialias:false,alpha:false,powerPreference:'high-performance'});if(!gl)throw Error('此瀏覽器未能提供 WebGL2。請用支援 WebGL2 嘅 Safari / Chrome 開啟。');init()}catch(e){$('errorText').textContent=e.message;$('error').hidden=false;console.error(e)}
 function init(){
-const PI=Math.PI,TAU=PI*2,FAR=6500;let W=1,H=1,aspect=1,time=0,last=0,mode='menu',paused=false,quality='high',rain=true,camMode='cockpit',audioOn=false,actx=null;let seed=8192;function rand(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296}const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),mix=(a,b,t)=>a+(b-a)*t;
+const PI=Math.PI,TAU=PI*2,FAR=6500;let W=1,H=1,aspect=1,time=0,last=0,mode='menu',paused=false,quality='high',rain=true,camMode='chase',audioOn=false,actx=null;let seed=8192;function rand(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296}const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),mix=(a,b,t)=>a+(b-a)*t;
 const add=(a,b)=>a.map((v,i)=>v+b[i]),sub=(a,b)=>a.map((v,i)=>v-b[i]),mul=(a,s)=>a.map(v=>v*s),dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],len=a=>Math.hypot(...a),norm=a=>mul(a,1/(len(a)||1));
 function identity(){return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1])}function mm(a,b){let o=new Float32Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++)for(let k=0;k<4;k++)o[c*4+r]+=a[k*4+r]*b[c*4+k];return o}function perspective(a,n,f){let t=1/Math.tan(1.12/2);return new Float32Array([t/a,0,0,0,0,t,0,0,0,0,(f+n)/(n-f),-1,0,0,2*f*n/(n-f),0])}function look(eye,target,up=[0,1,0]){let z=norm(sub(eye,target)),x=norm(cross(up,z)),y=cross(z,x);return new Float32Array([x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-dot(x,eye),-dot(y,eye),-dot(z,eye),1])}function model(pos,yaw=0,pitch=0,roll=0,scale=1){let cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch),cr=Math.cos(roll),sr=Math.sin(roll);let y=new Float32Array([cy,0,-sy,0,0,1,0,0,sy,0,cy,0,0,0,0,1]),p=new Float32Array([1,0,0,0,0,cp,sp,0,0,-sp,cp,0,0,0,0,1]),r=new Float32Array([cr,sr,0,0,-sr,cr,0,0,0,0,1,0,0,0,0,1]);let m=mm(mm(y,p),r);for(let i=0;i<12;i++)m[i]*=scale;m[12]=pos[0];m[13]=pos[1];m[14]=pos[2];return m}function forward(y,p){return[-Math.sin(y)*Math.cos(p),Math.sin(p),-Math.cos(y)*Math.cos(p)]}
 function program(v,f){function sh(type,s){let h=gl.createShader(type);gl.shaderSource(h,s);gl.compileShader(h);if(!gl.getShaderParameter(h,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(h));return h}let p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,v));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,f));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));p.u={};return p}function use(p){gl.useProgram(p)}function loc(p,n){return p.u[n]??(p.u[n]=gl.getUniformLocation(p,n))}const f1=(p,n,x)=>gl.uniform1f(loc(p,n),x),i1=(p,n,x)=>gl.uniform1i(loc(p,n),x),v2=(p,n,x)=>gl.uniform2fv(loc(p,n),x),v3=(p,n,x)=>gl.uniform3fv(loc(p,n),x),m4=(p,n,x)=>gl.uniformMatrix4fv(loc(p,n),false,x);
@@ -1692,24 +1692,52 @@ function paintAirframe(canvas,vertices){
   ctx.closePath();ctx.fillStyle=ctx.strokeStyle=fill;ctx.fill();ctx.stroke();
  }
 }
-function jetMesh(enemy=false,heavy=false){let b=new Builder(),c=enemy?[.62,.64,.61]:heavy?[.033,.115,.072]:[.035,.041,.054],m=[.3,.7,0,5],dark=[.045,.065,.08],trim=enemy?[.78,.09,.045]:heavy?[.18,.44,.29]:[.26,.26,.34];
+const jadeNacelles=[-2.15,2.15];
+function jetMesh(heavy=false){
+ const b=new Builder(),c=heavy?[.025,.19,.095]:[.026,.030,.045];
+ const m=[.38,.48,0,5],trim=heavy?[.19,.47,.25]:[.26,.28,.37];
 // Smooth segmented fuselage, with radial UVs for aircraft skin, seams and rivets.
 function body(rings,color,mat,shift=[0,0,0],segments=32){rings=refineRings(rings);for(let k=0;k<rings.length-1;k++){let [z0,rx0,ry0,cy0]=rings[k],[z1,rx1,ry1,cy1]=rings[k+1];for(let j=0;j<segments;j++){let a=j*TAU/segments,d=(j+1)*TAU/segments,point=(z,rx,ry,cy,t)=>add([Math.cos(t)*rx,Math.sin(t)*ry+cy,z],shift);let pp=[point(z0,rx0,ry0,cy0,a),point(z0,rx0,ry0,cy0,d),point(z1,rx1,ry1,cy1,d),point(z1,rx1,ry1,cy1,a)],nn=[a,d,d,a].map(t=>norm([Math.cos(t),Math.sin(t),-(rx1-rx0)/(z1-z0)]));let uvs=[[j/segments,k/(rings.length-1)],[(j+1)/segments,k/(rings.length-1)],[(j+1)/segments,(k+1)/(rings.length-1)],[j/segments,(k+1)/(rings.length-1)]];for(let q of [0,1,2,0,2,3])b.a.push(...pp[q],...nn[q],...uvs[q],...color,...mat);}}}
-body([[-12,.035,.035,0],[-10,.5,.5,0],[-7,1.05,.85,0],[-3,1.5,1.05,0],[1,1.65,1.15,0],[5,1.25,1,0],[8,1.05,.9,0],[8.5,.95,.83,0]],c,m);
+const centerline=heavy
+ ? [[-13,.035,.035,0],[-9,.7,.44,0],[-6,1.2,.72,0],[-2,2.15,1,0],[2,2.8,1,0],[5,2.4,.75,0],[7,1.3,.48,0],[8,.05,.05,0]]
+ : [[-14,.035,.035,0],[-10,.48,.48,0],[-7,.95,.85,0],[-3,1.4,1.05,0],[1,1.6,1.12,0],[5,1.25,1,0],[8,1.05,.9,0],[8.5,.95,.83,0]];
+body(centerline,c,m);
 
 function fin(points,color,mat=m,thick=.1){let down=points.map(p=>[p[0],p[1]-thick,p[2]]);b.quad(...points,color,mat);b.quad(...down.slice().reverse(),color,mat);for(let i=0;i<4;i++)b.quad(points[i],down[i],down[(i+1)%4],points[(i+1)%4],color,mat);}
+if(!heavy){
+ // A single upright dorsal fin stays readable head-on from the chase camera.
+ for(const side of [-1,1]){
+  const root=side*.42,tip=side*.11;
+  fin([[root,.65,2.3],[tip,5.35,5.85],[tip,5.0,7.35],[root,.65,8.1]],c);
+  fin([[tip,5.0,5.65],[tip,5.35,5.85],[tip,5.0,7.35],[tip,4.70,7.41]],trim);
+ }
+}
 for(const side of [-1,1]){
- const tip=heavy?9.1:7.3, lead=heavy?2:4.1, tail=heavy?4.9:6.1;
- fin([[side*.92,0,heavy?-7:-5.4],[side*tip,-.14,lead],[side*(tip-.4),-.15,tail],[side*1.15,.1,6.5]],c);
- fin([[side*(tip-.64),-.09,lead-.5],[side*tip,-.1,lead],[side*(tip-.4),-.1,tail],[side*(tip-.92),-.09,tail-.1]],trim);
- fin([[side*.95,.52,3.4],[side*(heavy?3.6:2.2),heavy?2.8:4.1,6.5],[side*(heavy?3.3:2.1),heavy?2.5:3.7,8.4],[side*1.1,.42,7.9]],c);
- if(heavy)fin([[side*.95,.12,-6.8],[side*3.95,.13,-3.3],[side*3.3,.1,-2.8],[side*1.2,.16,-3.9]],trim);
- b.rod([side*1.15,.14,heavy?-6.7:-5.15],[side*(tip-.42),-.09,lead],.045,trim,m);
+ const wing=heavy
+  ? [[1.25,.2,-7.15],[10.9,.56,.6],[11.6,1.2,3.1],[1.65,.16,6.5]]
+  : [[.92,.16,-5.2],[6.85,-.15,4.9],[6.35,-.15,6.25],[1.0,.12,5.85]];
+ const mirror=points=>points.map(([x,y,z])=>[side*x,y,z]);
+ fin(mirror(wing),c,m,.2);
+ if(heavy){
+  fin(mirror([[2.0,.60,3.4],[5.1,3.75,6.15],[5.4,3.65,8.05],[2.35,.60,8.8]]),c);
+  fin(mirror([[1,.25,-7.5],[4.7,.29,-4.9],[4.5,.30,-4.15],[1.1,.27,-4.85]]),trim);
+  fin(mirror([[8.9,.61,-.63],[10.9,.62,.6],[11.6,1.26,3.1],[9.8,.98,3.7]]),trim);
+ }else{
+  fin(mirror([[1,.22,-4.85],[6.7,-.08,4.94],[6.35,-.08,5.29],[1.2,.22,-3.85]]),trim);
+ }
 }
 body([[-6,.02,.03,.62],[-4.4,.69,.54,.89],[-2.5,.81,.63,.98],[-.7,.48,.18,1.07]],heavy?[.09,.27,.22]:[.14,.19,.27],[.13,.7,0,0]);
-// Recessed engine nozzle and luminous afterburner sit inside concentric rings.
-body([[7.8,1.05,.9,0],[8.6,.95,.82,0],[9,.85,.74,0]],[.065,.08,.09],[.48,.9,0,5]);
-for(let side of [-1,1]){b.rod([side*.7,.8,-4.9],[side*.7,1,-1],.025,[.65,.7,.73],[.24,.9,0,5]);b.box(side*5,.03,2.9,.8,.05,1.8,trim,[.5,.2,0,5]);}paintAirframe($(heavy?'viperPortrait':'falconPortrait'),b.a);return b.mesh();}
+const exhaust=[.09,.095,.095],nozzle=[.40,.62,0,5];
+if(heavy){
+ for(const x of jadeNacelles){
+  body([[-5.3,.16,.15,0],[-3.5,.87,.65,0],[1,1.15,.9,0],[6,1.02,.92,0],[8.15,.91,.82,0]],c,m,[x,0,0],16);
+  body([[8.1,.93,.85,0],[8.85,.86,.79,0],[9,.77,.70,0]],exhaust,nozzle,[x,0,0],16);
+ }
+}else{
+ body([[7.8,1.05,.9,0],[8.6,.95,.82,0],[9,.85,.74,0]],exhaust,nozzle);
+}
+paintAirframe($(heavy?'viperPortrait':'falconPortrait'),b.a);
+return b.mesh();}
 // Fictional opposing fighters inspired by F-16 and F-15 profiles, generated as real 3D meshes.
 function opposingFighter(twin=false){
  let b=new Builder(),skin=[.34,.39,.4],dark=[.075,.09,.10],panel=[.24,.28,.29],edge=[.5,.52,.49],mark=[.73,.17,.10],m=[.38,.68,0,5],cockpit=[.055,.17,.2];
@@ -1743,7 +1771,7 @@ function opposingFighter(twin=false){
  }
  return b.mesh();
 }
-let scrapB=new Builder();scrapB.tri([-2,0,-2],[2,.15,1],[-1,.25,2],[.34,.4,.43],[.4,.8,0,5]);scrapB.tri([-1,.25,2],[2,.15,1],[-2,0,-2],[.16,.2,.22],[.5,.8,0,5]);scrapB.box(0,-.3,0,.22,.3,3,[.1,.14,.16],[.6,.8,0,5]);let debrisMesh=scrapB.mesh();let playerMesh=jetMesh(),heavyMesh=jetMesh(false,true),enemyMesh=opposingFighter(false),enemyHeavyMesh=opposingFighter(true),pb=new Builder();pb.box(0,-.5,0,1,1,1,[1,.25,.045],[.5,.1,5,0]);let particleMesh=pb.mesh(),bulletB=new Builder();bulletB.box(0,-.1,0,.22,.22,6,[1,.65,.15],[.3,.1,5,0]);let bulletMesh=bulletB.mesh();let enemyTraceB=new Builder();enemyTraceB.box(0,-.18,0,.36,.36,9,[1,.08,.035],[.3,.1,6,0]);let enemyTraceMesh=enemyTraceB.mesh();
+let scrapB=new Builder();scrapB.tri([-2,0,-2],[2,.15,1],[-1,.25,2],[.34,.4,.43],[.4,.8,0,5]);scrapB.tri([-1,.25,2],[2,.15,1],[-2,0,-2],[.16,.2,.22],[.5,.8,0,5]);scrapB.box(0,-.3,0,.22,.3,3,[.1,.14,.16],[.6,.8,0,5]);let debrisMesh=scrapB.mesh();let playerMesh=jetMesh(),heavyMesh=jetMesh(true),enemyMesh=opposingFighter(false),enemyHeavyMesh=opposingFighter(true),pb=new Builder();pb.box(0,-.5,0,1,1,1,[1,.25,.045],[.5,.1,5,0]);let particleMesh=pb.mesh(),bulletB=new Builder();bulletB.box(0,-.1,0,.22,.22,6,[1,.65,.15],[.3,.1,5,0]);let bulletMesh=bulletB.mesh();let enemyTraceB=new Builder();enemyTraceB.box(0,-.18,0,.36,.36,9,[1,.08,.035],[.3,.1,6,0]);let enemyTraceMesh=enemyTraceB.mesh();
 // V51 articulated aircraft parts. Geometry stays local to the parent aircraft.
 function ellipsoid(b,center,radii,color,mat,half=false){for(let j=0;j<12;j++)for(let k=0;k<24;k++){let point=(v,u)=>add(center,[radii[0]*Math.cos(u)*Math.sin(v),radii[1]*Math.cos(v),radii[2]*Math.sin(u)*Math.sin(v)]);let v=j*PI/(half?24:12),v1=(j+1)*PI/(half?24:12),u=k*TAU/24,u1=(k+1)*TAU/24;let off=b.a.length;b.quad(point(v,u),point(v1,u),point(v1,u1),point(v,u1),color,mat);for(let n=off;n<b.a.length;n+=15){let normal=norm([0,1,2].map(i=>(b.a[n+i]-center[i])/(radii[i]*radii[i])));b.a.splice(n+3,3,...normal);}}}
 const jetParts={};
@@ -1764,9 +1792,9 @@ function drawJet(base,twin,hp,ammo,roll,pitch,speed,enemy=false){
  draw(enemy?(twin?enemyHeavyMesh:enemyMesh):(twin?heavyMesh:playerMesh),base);
  let near=mode==='study'&&studyView===50||Math.hypot(base[12]-camPos[0],base[13]-camPos[1],base[14]-camPos[2])<650;
  const part=(mesh,p,y=0,r=0,scale=1)=>draw(mesh,mm(base,model(p,y,r,0,scale)));
- for(let side of [-1,1]){let e=mm(base,model([side*.9,.3,5.4],0,clamp(pitch*.6+roll*side*.18,-.4,.4)));if(side<0)e=mm(e,new Float32Array([-1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]));draw(jetParts.elevator,e);part(jetParts.aileron,[side*6.1,.07,3.65],0,clamp(roll*side*.3,-.45,.45));}
+ for(let side of [-1,1]){let e=mm(base,model([side*(twin&&!enemy?2.6:.9),.3,5.4],0,clamp(pitch*.6+roll*side*.18,-.4,.4)));if(side<0)e=mm(e,new Float32Array([-1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]));draw(jetParts.elevator,e);part(jetParts.aileron,[side*(enemy?6.1:twin?7.7:4.75),twin&&!enemy?.48:.07,enemy?3.65:twin?3.7:4.8],0,clamp(roll*side*.3,-.45,.45));}
  let boost=clamp((speed-115)/90,0,1),pulse=1+.06*Math.sin(time*31);
- for(let x of twin&&enemy?[-.95,.95]:[0]){let f=mm(base,model([x,0,9]));f[8]*=1+boost*1.8;f[9]*=1+boost*1.8;f[10]*=1+boost*1.8;part(jetParts.flame,[x,0,9],0,0,.55+boost*.5);if(boost>.2)draw(jetParts.flame,f);}
+ for(let x of twin?(enemy?[-.95,.95]:jadeNacelles):[0]){let f=mm(base,model([x,0,9]));f[8]*=1+boost*1.8;f[9]*=1+boost*1.8;f[10]*=1+boost*1.8;part(jetParts.flame,[x,0,9],0,0,.55+boost*.5);if(boost>.2)draw(jetParts.flame,f);}
  if(near){for(let i=0;i<6;i++){let side=i%2?1:-1,x=side*(3.1+Math.floor(i/2)*1.25);if(i<ammo)part(jetParts.missile,[x,-1.1,1]);}if(!enemy)for(let i=0;i<Math.min(rocketSalvos,4);i++)part(jetParts.pod,[(i%2?1:-1)*(2.4+Math.floor(i/2)*.6),-1.5,2.4]);part(jetParts.pilot,[0,0,0]);part(jetParts.frame,[0,0,0]);part(jetParts.mark,[0,0,0]);}
  for(let i=0;i<Math.min(4,Math.floor((100-hp)/20));i++)part(jetParts.scorch,[(i%2?1:-1)*(3+i*.4),.15,1.2+i*.55]);
  gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);part(jetParts.canopy,[0,0,0]);gl.depthMask(true);gl.disable(gl.BLEND);
